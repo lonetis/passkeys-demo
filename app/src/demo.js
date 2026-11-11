@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { createLogger } from './log.js';
-import { prepareBrowsers, SETUP_STAGES, PROFILE_BY_ROLE } from './setup.js';
-import { steps, sleep } from './scenario.js';
+import { PROFILE_BY_ROLE } from './setup.js';
+import { sleep } from './scenarios/common.js';
 
 const TICK_INTERVAL_MS = 500;
 const AUTOPILOT_PAUSE_MS = 900;
@@ -10,12 +10,15 @@ const ROLES = ['victim', 'attacker'];
 const OWNER_BY_PROFILE = Object.freeze(Object.fromEntries(Object.entries(PROFILE_BY_ROLE).map(([role, profile]) => [profile, role])));
 
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const shortId = (id) => (id && id.length > 18 ? `${id.slice(0, 10)}…${id.slice(-4)}` : id ?? '');
 
-function emptyFacts() {
+function emptyFacts(presetNames) {
   return {
-    names: { victim: null, attacker: null },
+    names: { victim: presetNames?.victim ?? null, attacker: presetNames?.attacker ?? null },
     /** Last "Send" click in each browser's interceptor: { op, credentialId, key, userHandle }. */
     lastSend: { victim: null, attacker: null },
+    /** Last text copied to the clipboard in each browser. */
+    lastCopy: { victim: null, attacker: null },
     victimPasskey: null,
     overwrite: null,
     takeover: null,
@@ -23,6 +26,8 @@ function emptyFacts() {
     /** Model of the website's passkey table, keyed by credential ID (base64url). */
     passkeys: new Map(),
     lastLogin: null,
+    /** Facts a scenario latches itself in its observe() hook. */
+    scenario: {},
   };
 }
 
@@ -32,19 +37,23 @@ function keyOwner(keyName) {
 }
 
 /**
- * Orchestrates the demo: prepares the browsers, follows what happens in them, evaluates the
- * guide, draws highlights, and publishes one state object to all connected UIs.
+ * Runs one demo instance: a scenario on its own pair of browsers. Prepares the browsers,
+ * follows what happens in them, evaluates the guide, draws highlights, and publishes one
+ * state object to all connected UIs.
  */
 export class DemoController extends EventEmitter {
-  constructor(browsers, config) {
+  constructor(scenario, browsers, config, catalog) {
     super();
+    this.scenario = scenario;
+    this.steps = scenario.steps;
     this.browsers = browsers;
     this.config = config;
-    this.log = createLogger('demo');
+    this.catalog = catalog;
+    this.log = createLogger(`demo:${scenario.id}`);
     this.phase = 'preparing';
-    this.setup = { stages: SETUP_STAGES.map((stage) => ({ ...stage, status: 'pending' })), error: null };
+    this.setup = this.freshSetupState();
     this.stepIndex = 0;
-    this.facts = emptyFacts();
+    this.facts = emptyFacts(scenario.presetNames);
     this.live = { victim: null, attacker: null };
     this.notice = null;
     this.celebration = null;
@@ -55,15 +64,17 @@ export class DemoController extends EventEmitter {
 
     for (const role of ROLES) {
       const browser = browsers[role];
-      browser.on('interceptor-send', (payload) => {
-        this.facts.lastSend[role] = payload;
-      });
+      browser.on('report', (payload) => this.onReport(role, payload));
       browser.on('passkey-result', (result) => this.onPasskeyResult(role, result));
       browser.on('disconnected', () => {
         if (this.phase !== 'ready') return;
         this.setNotice('error', `The ${role} browser lost its connection. Press “Reset demo” to start over.`);
       });
     }
+  }
+
+  freshSetupState() {
+    return { stages: this.scenario.setupStages.map((stage) => ({ ...stage, status: 'pending' })), error: null };
   }
 
   start() {
@@ -78,11 +89,11 @@ export class DemoController extends EventEmitter {
     const generation = ++this.generation;
     this.phase = 'preparing';
     this.stepIndex = 0;
-    this.facts = emptyFacts();
+    this.facts = emptyFacts(this.scenario.presetNames);
     this.live = { victim: null, attacker: null };
     this.notice = null;
     this.celebration = null;
-    this.setup = { stages: SETUP_STAGES.map((stage) => ({ ...stage, status: 'pending' })), error: null };
+    this.setup = this.freshSetupState();
     this.publish();
 
     const onStage = (id) => {
@@ -95,7 +106,7 @@ export class DemoController extends EventEmitter {
     };
 
     try {
-      const { instanceId } = await prepareBrowsers(this.browsers, this.config, onStage);
+      const { instanceId } = await this.scenario.prepare({ browsers: this.browsers, config: this.config, onStage });
       if (generation !== this.generation) return;
       this.setup.stages.forEach((stage) => { stage.status = 'done'; });
       this.phase = 'ready';
@@ -112,15 +123,25 @@ export class DemoController extends EventEmitter {
 
   // ─── Facts from browser events ──────────────────────────────────────────
 
+  onReport(role, payload) {
+    if (payload?.type === 'send') this.facts.lastSend[role] = payload;
+    if (payload?.type === 'copy') this.facts.lastCopy[role] = String(payload.text ?? '');
+  }
+
+  /**
+   * Also runs while preparing, so passkeys a scenario registers behind the scenes appear in
+   * the database view; notices and celebrations are only shown once the demo is ready.
+   */
   onPasskeyResult(role, result) {
-    if (this.phase !== 'ready') return;
+    if (this.phase === 'failed') return;
+    const interactive = this.phase === 'ready';
     const facts = this.facts;
     const send = facts.lastSend[role];
     const account = facts.names[role];
 
     if (result.op === 'create') {
       if (!result.ok) {
-        this.setNotice('warning', `Registration failed: ${result.body?.error ?? `HTTP ${result.status}`}`);
+        if (interactive) this.setNotice('warning', `Registration failed: ${escapeHtml(result.body?.error ?? `HTTP ${result.status}`)}`);
         return;
       }
       const existing = facts.passkeys.get(result.credentialId);
@@ -143,10 +164,10 @@ export class DemoController extends EventEmitter {
         this.clearNotice();
       } else if (role === 'attacker' && reward && !facts.overwrite) {
         facts.overwrite = { reward, keyName: send?.key ?? null };
-        this.celebrate({ kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title });
+        if (interactive) this.celebrate({ kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title });
         this.clearNotice();
-      } else if (role === 'attacker' && !reward && this.currentStep().id === 'overwrite') {
-        this.setNotice('warning', 'That created a brand-new passkey for the attacker — its credential ID was not the victim’s. Try again: <b>+ Add Passkey</b>, then pick <code>profile1 | ES256</code> as Credential ID.');
+      } else if (interactive && role === 'attacker' && !reward && this.currentStep().id === 'overwrite') {
+        this.setNotice('warning', this.scenario.notices.overwriteMissed);
       }
       this.publish();
       return;
@@ -158,19 +179,19 @@ export class DemoController extends EventEmitter {
       ok: result.ok,
       user: loggedInAs,
       error: result.ok ? null : (result.body?.error ?? `HTTP ${result.status}`),
-      credentialName: send?.credentialId ?? null,
+      credentialId: result.credentialId,
       keyName: send?.key ?? null,
     };
     if (role === 'attacker' && result.ok && loggedInAs && loggedInAs === facts.names.victim && !facts.takeover) {
       facts.takeover = { user: loggedInAs };
-      this.celebrate({ kind: 'takeover', user: loggedInAs });
+      if (interactive) this.celebrate({ kind: 'takeover', user: loggedInAs });
       this.clearNotice();
     } else if (role === 'victim' && !result.ok && facts.overwrite && !facts.lockout) {
       facts.lockout = { error: facts.lastLogin.error };
-      this.celebrate({ kind: 'lockout', user: facts.names.victim });
+      if (interactive) this.celebrate({ kind: 'lockout', user: facts.names.victim });
       this.clearNotice();
-    } else if (!result.ok) {
-      this.setNotice('warning', `Login failed: ${escapeHtml(facts.lastLogin.error)}. Check the selections in the interceptor and try again.`);
+    } else if (interactive && !result.ok && !this.currentStep().quietLoginFailures) {
+      this.setNotice('warning', `Login failed: ${escapeHtml(facts.lastLogin.error)}. Check the interceptor and try again.`);
     }
     this.publish();
   }
@@ -191,7 +212,7 @@ export class DemoController extends EventEmitter {
   // ─── Guide evaluation ───────────────────────────────────────────────────
 
   currentStep() {
-    return steps[this.stepIndex];
+    return this.steps[this.stepIndex];
   }
 
   guideState() {
@@ -224,6 +245,11 @@ export class DemoController extends EventEmitter {
         const user = this.live[role]?.learning?.user;
         if (user && !this.facts.names[role]) this.facts.names[role] = user;
       }
+      try {
+        this.scenario.observe?.(this.guideState());
+      } catch (error) {
+        this.log.warn('observe failed:', error.message);
+      }
       await this.applyHighlights();
       this.publish();
     } finally {
@@ -251,7 +277,7 @@ export class DemoController extends EventEmitter {
 
   goTo(index) {
     if (this.phase !== 'ready') return;
-    this.stepIndex = Math.max(0, Math.min(steps.length - 1, index));
+    this.stepIndex = Math.max(0, Math.min(this.steps.length - 1, index));
     this.notice = null;
     this.publish();
   }
@@ -268,9 +294,11 @@ export class DemoController extends EventEmitter {
       for (const task of step.tasks) {
         if (generation !== this.generation || this.currentStep() !== step) return;
         if (task.done(this.guideState())) continue;
+        const startedAt = Date.now();
         await sleep(AUTOPILOT_PAUSE_MS);
         await task.run({ browser, state: () => this.guideState() });
         await this.waitUntil(() => task.done(this.guideState()), AUTOPILOT_TASK_TIMEOUT_MS);
+        this.log.info(`autopilot: ${step.id}/${task.id} done in ${Date.now() - startedAt} ms`);
       }
     } catch (error) {
       this.log.warn('autopilot stopped:', error.message);
@@ -315,16 +343,31 @@ export class DemoController extends EventEmitter {
   // ─── Published state ────────────────────────────────────────────────────
 
   render(html) {
-    const names = this.facts.names;
+    const { names, overwrite, scenario } = this.facts;
     return html
       .replaceAll('{victim}', escapeHtml(names.victim ?? 'victim'))
       .replaceAll('{attacker}', escapeHtml(names.attacker ?? 'attacker'))
-      .replaceAll('{flag}', escapeHtml(this.facts.overwrite?.reward?.country ?? ''));
+      .replaceAll('{flag}', escapeHtml(overwrite?.reward?.country ?? ''))
+      .replaceAll('{leaked}', `<code>${escapeHtml(shortId(scenario.leakedCredentialId ?? ''))}</code>`);
+  }
+
+  /** Short status for the landing page. */
+  summary() {
+    return {
+      id: this.scenario.id,
+      title: this.scenario.title,
+      summary: this.scenario.summary,
+      phase: this.phase,
+      step: this.steps[this.stepIndex].short,
+      stepIndex: this.stepIndex,
+      stepCount: this.steps.length,
+      flow: this.steps.filter((step) => step.tasks.length > 0).map((step) => ({ short: step.short, focus: step.focus })),
+    };
   }
 
   publicState() {
     const state = this.guideState();
-    const stepViews = steps.map((step, index) => {
+    const stepViews = this.steps.map((step, index) => {
       const evaluated = index === this.stepIndex ? this.evaluateStep(step, state) : step.tasks.map((task) => ({ task, done: false, current: false }));
       let complete = false;
       try {
@@ -361,12 +404,15 @@ export class DemoController extends EventEmitter {
     const lastLogin = this.facts.lastLogin ? { ...this.facts.lastLogin, keyOwner: keyOwner(this.facts.lastLogin.keyName) } : null;
 
     return {
+      demo: { id: this.scenario.id, title: this.scenario.title },
+      demos: this.catalog,
       phase: this.phase,
       setup: this.setup,
       stepIndex: this.stepIndex,
       steps: stepViews,
       names: this.facts.names,
       passkeys,
+      leakedCredentialId: this.facts.scenario.leakedCredentialId ?? null,
       lastLogin,
       notice: this.notice,
       celebration: this.celebration,
@@ -379,8 +425,7 @@ export class DemoController extends EventEmitter {
   }
 
   publish() {
-    const state = this.publicState();
-    const serialized = JSON.stringify(state);
+    const serialized = JSON.stringify(this.publicState());
     if (serialized === this.lastPublished) return;
     this.lastPublished = serialized;
     this.emit('state', serialized);

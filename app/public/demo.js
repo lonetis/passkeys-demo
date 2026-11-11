@@ -2,6 +2,8 @@ import RFB from '/vendor/rfb.js';
 
 const ROLES = ['victim', 'attacker'];
 const CELEBRATION_MS = 8000;
+/** The demo instance this page shows, from its URL (e.g. /attacker-view). */
+const DEMO_ID = location.pathname.split('/').filter(Boolean)[0];
 
 const $ = (selector) => document.querySelector(selector);
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -16,7 +18,7 @@ const rendered = new Map();
 
 function connectState() {
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  socket = new WebSocket(`${protocol}://${location.host}/ws`);
+  socket = new WebSocket(`${protocol}://${location.host}/ws/${DEMO_ID}`);
   socket.addEventListener('message', (event) => {
     state = JSON.parse(event.data);
     render();
@@ -34,7 +36,7 @@ function connectScreen(role) {
   const container = document.getElementById(`screen-${role}`);
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
   const connect = () => {
-    const rfb = new RFB(container, `${protocol}://${location.host}/vnc/${role}`, { shared: true, wsProtocols: ['binary'] });
+    const rfb = new RFB(container, `${protocol}://${location.host}/vnc/${DEMO_ID}/${role}`, { shared: true, wsProtocols: ['binary'] });
     rfb.scaleViewport = true;
     rfb.resizeSession = false;
     rfb.background = 'transparent';
@@ -60,13 +62,21 @@ function render() {
   const step = state.steps[state.stepIndex];
   $('#stage').dataset.focus = ready && step.focus ? step.focus : 'none';
 
+  renderOnce('versions', [state.demo, state.demos], renderVersions);
   renderOnce('stepper', [state.phase, state.stepIndex, state.steps.map((s) => [s.short, s.marker, s.focus, s.complete])], renderStepper);
   renderOnce('status', [state.phase, state.browsers], renderBrowserStatus);
   renderOnce('setup', [state.phase, state.setup], renderSetup);
   renderOnce('step', [state.phase, state.stepIndex, step, state.notice, state.autopilotRunning], () => renderStep(step));
   renderOnce('why', [step.why, step.callout], () => renderWhy(step));
-  renderOnce('db', [state.passkeys, state.lastLogin, state.names], renderDatabase);
+  renderOnce('db', [state.passkeys, state.lastLogin, state.names, state.leakedCredentialId], renderDatabase);
   renderCelebration();
+}
+
+function renderVersions() {
+  document.title = `${state.demo.title} · Passkey Takeover Demo`;
+  $('#versions').innerHTML = state.demos.map((demo) => `
+    <a class="version-link${demo.id === state.demo.id ? ' active' : ''}" href="/${encodeURIComponent(demo.id)}"
+      ${demo.id === state.demo.id ? 'aria-current="page"' : ''}>${esc(demo.title)}</a>`).join('');
 }
 
 function renderStepper() {
@@ -176,7 +186,10 @@ const shortId = (id) => (id && id.length > 18 ? `${id.slice(0, 10)}…${id.slice
 function renderDatabase() {
   const rows = state.passkeys.map((row) => `
     <tr class="${row.overwritten ? 'overwritten' : ''}">
-      <td><span class="cred-name">${esc(row.credentialName ?? 'unknown')}</span><span class="cred-id">${esc(shortId(row.credentialId))}</span></td>
+      <td>
+        <span class="cred-name">${esc(row.credentialName ?? 'unknown')}</span><span class="cred-id">${esc(shortId(row.credentialId))}</span>
+        ${state.leakedCredentialId && row.credentialId === state.leakedCredentialId ? '<span class="leak-tag">🔎 known to attacker</span>' : ''}
+      </td>
       <td><span class="account ${roleOfAccount(row.account)}">${esc(row.account)}</span></td>
       <td>
         <span class="key-chip ${esc(row.keyOwner ?? '')}">🔑 ${esc(KEY_LABEL[row.keyOwner] ?? 'unknown key')}</span>
@@ -186,12 +199,16 @@ function renderDatabase() {
     </tr>`).join('');
   $('#db-rows').innerHTML = rows || '<tr class="db-empty"><td colspan="3">No passkeys registered yet.</td></tr>';
 
+  $('#leaked-id').innerHTML = state.leakedCredentialId ? `
+    <div class="card-sub" style="margin-bottom:4px">Leaked to the attacker at login (allowCredentials)</div>
+    <code>${esc(shortId(state.leakedCredentialId))}</code>` : '';
+
   const login = state.lastLogin;
   $('#last-login').innerHTML = login ? `
     <div class="card-sub" style="margin-bottom:4px">Last passkey login</div>
     <div class="login-line">
       <span class="account ${login.role}">${login.role === 'victim' ? 'Victim’s browser' : 'Attacker’s browser'}</span>
-      used <code>${esc(login.credentialName ?? '?')}</code>
+      used credential <code>${esc(shortId(login.credentialId ?? '?'))}</code>
       signed with <span class="key-chip ${esc(login.keyOwner ?? '')}">🔑 ${esc(KEY_LABEL[login.keyOwner] ?? 'unknown key')}</span>
       →
       ${login.ok

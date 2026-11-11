@@ -23,41 +23,90 @@ export function snapshotLearningPage() {
     rewardModalOpen: document.getElementById('rewardModal')?.classList.contains('show') ?? false,
     userMenuOpen: isVisible(document.querySelector('a.dropdown-item[href="/settings"]')),
     passkeyMessage: isVisible(statusBox) ? statusBox.textContent.trim() : null,
+    // Username-first login ("Non-Discoverable" verifier): username step, then password fallback.
+    usernameFirst: document.getElementById('username-check-form')
+      ? {
+        username: document.querySelector('#username-check-form #username')?.value ?? '',
+        passwordVisible: isVisible(document.getElementById('password-form')),
+        password: document.querySelector('#password-form #password')?.value ?? '',
+      }
+      : null,
   };
 }
 
-/** Reads the current selection of the PASSKEYS-ATTACKER interceptor tab. */
+/** Reads the state of the PASSKEYS-ATTACKER interceptor tab (a full passkeys.tools page). */
 export function snapshotInterceptorPage() {
+  const isVisible = (element) => {
+    if (!element) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+  const parseJson = (text) => {
+    try {
+      return JSON.parse(text || '{}');
+    } catch {
+      return null;
+    }
+  };
   const op = document.getElementById('getCredentialIdSelect') ? 'get'
     : document.getElementById('createCredentialIdSelect') ? 'create'
       : null;
   const selectedText = (id) => document.getElementById(id)?.selectedOptions?.[0]?.text ?? null;
+  const request = parseJson(document.getElementById('interceptorRequestTextarea')?.value);
+  const response = parseJson(document.getElementById('interceptorResponseTextarea')?.value);
+  // Keys of a local (non-remote) passkeys.tools store, to see credential IDs edited in the Keys tab.
+  const storedKeys = parseJson(localStorage.getItem('keys')) ?? {};
+  const keyCredentialIds = Object.fromEntries(Object.entries(storedKeys)
+    .filter(([name]) => name.startsWith('profile'))
+    .map(([name, key]) => [name, key?.credentialId ?? null]));
   return {
     op,
     ready: Boolean(document.getElementById('interceptorSendButton')),
+    // The active passkeys.tools tab ("/interceptor", "/keys", ...).
+    tab: location.pathname,
+    navVisible: isVisible(document.querySelector('button[data-bs-target="#keys-tab-pane"]')),
     credentialId: op ? selectedText(`${op}CredentialIdSelect`) : null,
     key: op ? selectedText(`${op}KeySelect`) : null,
     userHandle: op === 'get' ? selectedText('getUserHandleSelect') : null,
+    allowCredentials: (request?.allowCredentials ?? []).map((credential) => credential.id),
+    responseHasUserHandle: response ? Boolean(response.userHandle) : null,
+    keysForm: {
+      b64url: document.getElementById('keysUpdateCredentialIdB64urlInput')?.value ?? '',
+      key: selectedText('keysUpdateCredentialIdSelect'),
+    },
+    keyCredentialIds,
   };
 }
 
 /**
- * Init script: reports the interceptor selection at the exact moment "Send" is clicked.
- * Polling alone could miss a change made just before clicking.
+ * Init script: reports user actions polling could miss —
+ *  - "send": the interceptor selection at the exact moment "Send" is clicked,
+ *  - "copy": text copied to the clipboard (e.g. a credential ID from the request).
  */
-export function reportInterceptorSends() {
+export function reportUserActions() {
   if (window.top !== window) return;
+  const report = (payload) => {
+    if (typeof window.__pkdemoReport === 'function') window.__pkdemoReport(payload);
+  };
   document.addEventListener('click', (event) => {
     const button = event.target instanceof Element ? event.target.closest('#interceptorSendButton') : null;
-    if (!button || typeof window.__pkdemoReport !== 'function') return;
+    if (!button) return;
     const selectedText = (id) => document.getElementById(id)?.selectedOptions?.[0]?.text ?? null;
     const op = document.getElementById('getCredentialIdSelect') ? 'get' : 'create';
-    window.__pkdemoReport({
+    report({
+      type: 'send',
       op,
       credentialId: selectedText(`${op}CredentialIdSelect`),
       key: selectedText(`${op}KeySelect`),
       userHandle: op === 'get' ? selectedText('getUserHandleSelect') : null,
     });
+  }, true);
+  document.addEventListener('copy', (event) => {
+    const field = event.target;
+    const text = field && typeof field.selectionStart === 'number'
+      ? field.value.slice(field.selectionStart, field.selectionEnd)
+      : String(document.getSelection() ?? '');
+    report({ type: 'copy', text });
   }, true);
 }
 
@@ -65,9 +114,11 @@ export function reportInterceptorSends() {
  * Draws the guide's "click here" highlights. Idempotent: called on every guide tick,
  * it adds, moves or removes highlights so they survive navigation and DOM changes.
  *
- * targets: [{ id, selectors: string[], label, option?: string }]
+ * targets: [{ id, selectors: string[], label, option?: string, select?: { text?, pattern? } }]
  * The first visible element matching any selector is highlighted; `option` additionally
- * marks (and scrolls to) the option with that text inside a listbox <select>.
+ * marks (and scrolls to) the option with that text inside a listbox <select>; `select`
+ * selects the given text (or first regex match, multiline) inside a textarea once, so a
+ * single keypress (Ctrl+C, Delete) acts on it.
  */
 export function applyHighlights(targets) {
   const STYLE_ID = 'pkdemo-style';
@@ -87,6 +138,7 @@ export function applyHighlights(targets) {
         0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.8); }
         50% { box-shadow: 0 0 0 12px rgba(34, 211, 238, 0); }
       }
+      textarea[data-pkdemo-hl] { outline-offset: -4px !important; }
       option[data-pkdemo-option] {
         background: ${ACCENT} !important;
         color: #000 !important;
@@ -165,6 +217,37 @@ export function applyHighlights(targets) {
       }
     }
 
+    if (target.select && element.tagName === 'TEXTAREA') {
+      const value = element.value;
+      let start = -1;
+      let length = 0;
+      if (target.select.text) {
+        start = value.indexOf(target.select.text);
+        length = target.select.text.length;
+      } else if (target.select.pattern) {
+        const match = new RegExp(target.select.pattern, 'm').exec(value);
+        if (match) {
+          start = match.index;
+          length = match[0].length;
+        }
+      }
+      // Re-applied whenever focus or selection got lost (e.g. the presenter clicked into the
+      // page to give it keyboard focus), so the next Ctrl+C / Delete acts on the right text.
+      const marker = `${target.id}:${start}:${length}`;
+      const selected = document.activeElement === element
+        && element.selectionStart === start && element.selectionEnd === start + length;
+      if (start >= 0 && !selected) {
+        element.focus({ preventScroll: true });
+        element.setSelectionRange(start, start + length);
+        if (element.dataset.pkdemoSelected !== marker) {
+          const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight) || 20;
+          const lineIndex = value.slice(0, start).split('\n').length - 1;
+          element.scrollTop = Math.max(0, lineIndex * lineHeight - element.clientHeight / 3);
+          element.dataset.pkdemoSelected = marker;
+        }
+      }
+    }
+
     const key = String(target.id);
     let tip = existingTips.get(key);
     if (!tip) {
@@ -176,14 +259,19 @@ export function applyHighlights(targets) {
     if (tip.textContent !== target.label) tip.textContent = target.label;
     usedTips.add(key);
 
+    // Point at the element from above if there is room, else from below; for elements taller
+    // than the visible area (e.g. the interceptor's textareas), pin the tip to the visible part.
     const rect = element.getBoundingClientRect();
-    const below = rect.top < 70;
+    const roomAbove = rect.top >= 70;
+    const roomBelow = rect.bottom <= window.innerHeight - 60;
+    const below = !roomAbove;
+    const anchorY = roomAbove ? rect.top : roomBelow ? rect.bottom : Math.max(rect.top, 0) + 8;
     tip.classList.toggle('pkdemo-below', below);
     const halfWidth = tip.offsetWidth / 2;
     const anchorX = rect.left + rect.width / 2;
     const clampedX = Math.min(Math.max(anchorX, halfWidth + 8), document.documentElement.clientWidth - halfWidth - 8);
     tip.style.left = `${clampedX + window.scrollX}px`;
-    tip.style.top = `${(below ? rect.bottom : rect.top) + window.scrollY}px`;
+    tip.style.top = `${anchorY + window.scrollY}px`;
     tip.style.setProperty('--arrow-x', `${halfWidth + (anchorX - clampedX)}px`);
 
     if (!scrolledThisTick && document.documentElement.dataset.pkdemoScrolledTo !== key) {

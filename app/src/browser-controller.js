@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { lookup } from 'node:dns/promises';
 import { chromium } from 'playwright-core';
 import { createLogger } from './log.js';
-import { snapshotLearningPage, snapshotInterceptorPage, applyHighlights, reportInterceptorSends } from './page-scripts.js';
+import { snapshotLearningPage, snapshotInterceptorPage, applyHighlights, reportUserActions } from './page-scripts.js';
 
 const CONNECT_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 300;
@@ -13,8 +13,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * Remote-controls one demo browser (a browser container) over the Chrome DevTools Protocol.
  *
  * Events:
- *  - "interceptor-send" ({ op, credentialId, key, userHandle }) when "Send" is clicked in the
- *    PASSKEYS-ATTACKER interceptor, captured synchronously so the selection is exact.
+ *  - "report" ({ type: 'send', op, credentialId, key, userHandle }) when "Send" is clicked in
+ *    the PASSKEYS-ATTACKER interceptor, captured synchronously so the selection is exact;
+ *    ({ type: 'copy', text }) when text is copied in any page.
  *  - "passkey-result" ({ op, ok, status, credentialId, body }) for every registration /
  *    authentication verification answered by the CTF website.
  *  - "disconnected" when the CDP connection drops unexpectedly.
@@ -27,7 +28,7 @@ export class BrowserController extends EventEmitter {
     this.cdpPort = cdpPort;
     this.learningUrl = learningUrl;
     this.passkeysToolsUrl = passkeysToolsUrl;
-    this.log = createLogger(`browser:${role}`);
+    this.log = createLogger(`browser:${host}`);
     this.browser = null;
     this.context = null;
     this.expectingDisconnect = false;
@@ -76,9 +77,9 @@ export class BrowserController extends EventEmitter {
       this.emit('disconnected');
     });
     await this.context.exposeBinding('__pkdemoReport', (_source, payload) => {
-      this.emit('interceptor-send', payload);
+      this.emit('report', payload);
     });
-    await this.context.addInitScript(reportInterceptorSends);
+    await this.context.addInitScript(reportUserActions);
     this.context.on('page', (page) => this.watchPage(page));
     this.context.pages().forEach((page) => this.watchPage(page));
     this.log.info('connected');
@@ -122,7 +123,8 @@ export class BrowserController extends EventEmitter {
       }
       let credentialId = null;
       try {
-        credentialId = response.request().postDataJSON()?.id ?? null;
+        // The CTF posts { credential: <WebAuthn response JSON>, ... }.
+        credentialId = response.request().postDataJSON()?.credential?.id ?? null;
       } catch {
         credentialId = null;
       }
@@ -150,12 +152,27 @@ export class BrowserController extends EventEmitter {
     while (Date.now() < deadline) {
       const page = this.interceptorPage();
       if (page) {
-        await page.waitForSelector('#interceptorSendButton', { timeout: deadline - Date.now() });
+        // "attached": the Send button is hidden while another passkeys.tools tab (e.g. Keys) is shown.
+        await page.waitForSelector('#interceptorSendButton', { state: 'attached', timeout: Math.max(1, deadline - Date.now()) });
         return page;
       }
       await sleep(200);
     }
     throw new Error('The PASSKEYS-ATTACKER interceptor tab did not open');
+  }
+
+  /**
+   * Switches the passkeys.tools page to one of its tabs (e.g. "keys", "interceptor"),
+   * opening the collapsed navigation menu first on narrow screens.
+   */
+  async openPasskeysToolsTab(page, tab) {
+    const button = page.locator(`button[data-bs-target="#${tab}-tab-pane"]`);
+    if (!(await button.isVisible())) {
+      await page.locator('.navbar-toggler').click();
+      await button.waitFor({ state: 'visible' });
+      await sleep(400);
+    }
+    await button.click();
   }
 
   /** Brings a tab to the front so the audience sees what is being automated. */

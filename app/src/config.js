@@ -26,6 +26,11 @@ function readUrl(name, fallback) {
   }
 }
 
+function readList(name, fallback) {
+  return readString(name, fallback).split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+const browserHostPattern = readString('BROWSER_HOST_PATTERN', '{demo}-{role}');
 const browserCdpPort = readInt('BROWSER_CDP_PORT', 9223);
 const browserVncPort = readInt('BROWSER_VNC_PORT', 5900);
 
@@ -35,24 +40,23 @@ export const config = Object.freeze({
     username: readString('DEMO_USERNAME', 'demo'),
     password: readString('DEMO_PASSWORD', ''),
   }),
+  /** Scenario IDs to run, each on its own pair of browsers. */
+  demos: Object.freeze(readList('DEMOS', 'full-story,attacker-view')),
   learningUrl: readUrl('LEARNING_URL', 'https://learning.passkeys.tools'),
   passkeysToolsUrl: readUrl('PASSKEYS_TOOLS_URL', 'https://passkeys.tools'),
   passkeysToolsDbUrl: readUrl('PASSKEYS_TOOLS_DB_URL', 'https://db.passkeys.tools'),
   extensionPath: readString('EXTENSION_PATH', '/opt/passkeys-tools-extension'),
   verifiers: Object.freeze({
     registration: readInt('REGISTRATION_VERIFIER_ID', 60),
-    authentication: readInt('AUTHENTICATION_VERIFIER_ID', 2),
+    discoverableLogin: readInt('DISCOVERABLE_LOGIN_VERIFIER_ID', 2),
+    usernameFirstLogin: readInt('USERNAME_FIRST_LOGIN_VERIFIER_ID', 4),
   }),
-  browsers: Object.freeze({
-    victim: Object.freeze({
-      host: readString('VICTIM_HOST', 'victim'),
+  /** Where the browser containers of a demo are reachable. */
+  browserTarget(demo, role) {
+    return {
+      host: browserHostPattern.replaceAll('{demo}', demo).replaceAll('{role}', role),
       cdpPort: browserCdpPort,
       vncPort: browserVncPort,
-    }),
-    attacker: Object.freeze({
-      host: readString('ATTACKER_HOST', 'attacker'),
-      cdpPort: browserCdpPort,
-      vncPort: browserVncPort,
-    }),
-  }),
+    };
+  },
 });

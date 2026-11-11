@@ -1,15 +1,12 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { generateSecret, listKeyNames } from './passkeys-tools-store.js';
+import { createHash } from 'node:crypto';
+
+/**
+ * Building blocks for the behind-the-scenes setup that each scenario composes in its
+ * prepare() function. All of them act on a BrowserController.
+ */
 
 /** PASSKEYS-ATTACKER operation mode per browser (see the artifact appendix, §A.3.1). */
 export const PROFILE_BY_ROLE = Object.freeze({ victim: 'profile1', attacker: 'profile2' });
-
-export const SETUP_STAGES = Object.freeze([
-  { id: 'browsers', label: 'Restart both browsers with fresh, empty profiles' },
-  { id: 'extension', label: 'Install PASSKEYS-ATTACKER: victim → profile1, attacker → profile2' },
-  { id: 'storage', label: 'Connect both to one shared, end-to-end encrypted passkeys.tools key store' },
-  { id: 'ctf', label: 'Open a fresh CTF instance shared by both browsers, with the vulnerable registration' },
-]);
 
 /** Chromium derives the ID of an unpacked extension from its absolute path. */
 function unpackedExtensionId(path) {
@@ -17,13 +14,19 @@ function unpackedExtensionId(path) {
     .split('').map((hex) => String.fromCharCode(97 + Number.parseInt(hex, 16))).join('');
 }
 
+/** Closes every tab but one and returns it. */
 async function singlePage(browser) {
   const [first, ...rest] = browser.pages();
   await Promise.all(rest.map((page) => page.close().catch(() => {})));
   return first ?? browser.context.newPage();
 }
 
-async function configureExtension(browser, config) {
+/** Fresh profiles (and with them a fresh extension install) for all given browsers. */
+export async function restartBrowsers(browsers) {
+  await Promise.all(browsers.map((browser) => browser.restart()));
+}
+
+export async function configureExtension(browser, config) {
   const page = await singlePage(browser);
   await page.goto(`chrome-extension://${unpackedExtensionId(config.extensionPath)}/popup.html`);
   await page.evaluate((settings) => chrome.storage.local.set(settings), {
@@ -35,55 +38,70 @@ async function configureExtension(browser, config) {
   });
 }
 
-async function configureRemoteStorage(browser, config, secret) {
+async function waitForPasskeysToolsKeys(page) {
+  // The frontend generates any missing profile keys on load and only then marks the tabs loaded.
+  await page.waitForSelector('.tab-content.loaded', { timeout: 60_000 });
+}
+
+/** Keeps the browser's own key store in its local storage (nothing shared). */
+export async function initLocalKeyStore(browser, config) {
+  const page = await singlePage(browser);
+  await page.goto(`${config.passkeysToolsUrl}/keys`);
+  await waitForPasskeysToolsKeys(page);
+}
+
+/**
+ * Points the browser at a shared, end-to-end encrypted remote key store. Run this for one
+ * browser after the other: the first generates the profile keys in the empty store, the
+ * second must find them instead of racing to generate its own.
+ */
+export async function connectRemoteKeyStore(browser, config, secret) {
   const page = await singlePage(browser);
   await page.goto(`${config.passkeysToolsUrl}/settings`);
   await page.evaluate((storageConfig) => {
     localStorage.setItem('storageConfig', JSON.stringify(storageConfig));
   }, { mode: 'remote', url: config.passkeysToolsDbUrl, secret, e2ee: true });
   await page.reload();
-  // The frontend generates any missing profile keys on load and only then marks the tabs loaded.
-  await page.waitForSelector('.tab-content.loaded', { timeout: 60_000 });
+  await waitForPasskeysToolsKeys(page);
 }
 
-async function openCtfInstance(browser, config, instanceId) {
+/** Joins the shared CTF instance with the given registration/authentication verifiers. */
+export async function openCtfInstance(browser, config, instanceId, { registrationVerifier, authenticationVerifier }) {
   const secure = config.learningUrl.startsWith('https:');
   await browser.context.addCookies([
     { name: 'fwf_instance_id', value: instanceId, url: config.learningUrl, httpOnly: true, secure, sameSite: 'Lax' },
-    { name: 'fwf_verifier_reg', value: String(config.verifiers.registration), url: config.learningUrl, secure, sameSite: 'Lax' },
-    { name: 'fwf_verifier_auth', value: String(config.verifiers.authentication), url: config.learningUrl, secure, sameSite: 'Lax' },
+    { name: 'fwf_verifier_reg', value: String(registrationVerifier), url: config.learningUrl, secure, sameSite: 'Lax' },
+    { name: 'fwf_verifier_auth', value: String(authenticationVerifier), url: config.learningUrl, secure, sameSite: 'Lax' },
   ]);
   const page = await singlePage(browser);
   await page.goto(`${config.learningUrl}/`);
 }
 
-/**
- * Brings both browsers into the demo's starting state. Everything is new on every run:
- * browser profiles (and with them the extension install), the passkeys.tools store secret,
- * and the CTF instance.
- */
-export async function prepareBrowsers({ victim, attacker }, config, onStage) {
-  const secret = generateSecret();
-  const instanceId = randomUUID();
+export async function createCtfAccount(browser, config, username, password) {
+  const page = await singlePage(browser);
+  await page.goto(`${config.learningUrl}/register`);
+  await page.fill('#username', username);
+  await page.fill('#password', password);
+  await page.fill('#confirmPassword', password);
+  await page.click('form[action="/register"] button[type="submit"]');
+  await page.waitForSelector('ul.navbar-nav.align-items-center .dropdown-toggle');
+}
 
-  onStage('browsers');
-  await Promise.all([victim.restart(), attacker.restart()]);
+/** Registers a passkey with the interceptor's defaults and stays on the passkey management page. */
+export async function registerDefaultPasskey(browser, config) {
+  const page = await singlePage(browser);
+  await page.goto(`${config.learningUrl}/settings`);
+  await page.click('#add-passkey-btn');
+  await page.waitForSelector('#confirm-add-passkey:visible');
+  await page.click('#confirm-add-passkey');
+  const interceptor = await browser.waitForInterceptorPage();
+  await interceptor.click('#interceptorSendButton');
+  await page.bringToFront();
+  await page.waitForSelector('.delete-passkey-btn', { timeout: 20_000 });
+}
 
-  onStage('extension');
-  await Promise.all([configureExtension(victim, config), configureExtension(attacker, config)]);
-
-  onStage('storage');
-  // Sequential on purpose: the first browser generates the profile keys in the empty store,
-  // the second must find them instead of racing to generate its own.
-  await configureRemoteStorage(victim, config, secret);
-  await configureRemoteStorage(attacker, config, secret);
-  const keyNames = await listKeyNames(config.passkeysToolsDbUrl, secret);
-  for (const required of ['profile1 | ES256', 'profile2 | ES256']) {
-    if (!keyNames.includes(required)) throw new Error(`passkeys.tools key store is missing "${required}"`);
-  }
-
-  onStage('ctf');
-  await Promise.all([openCtfInstance(victim, config, instanceId), openCtfInstance(attacker, config, instanceId)]);
-
-  return { instanceId };
+export async function logOutOfCtf(browser, config) {
+  const page = await singlePage(browser);
+  await page.goto(`${config.learningUrl}/logout`);
+  await page.goto(`${config.learningUrl}/`);
 }
