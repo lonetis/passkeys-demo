@@ -1,0 +1,26 @@
+{
+  "name": "passkeys-demo-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Guided live demo of the passkey Credential Overwrite attack using PASSKEYS-ATTACKER and the Fun with Flags and Passkeys CTF",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "build": "esbuild client/rfb.js --bundle --format=esm --minify --target=es2020 --outfile=dist/rfb.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@novnc/novnc": "1.4.0",
+    "express": "5.1.0",
+    "playwright-core": "1.65.0",
+    "ws": "8.22.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.11"
+  }
+}

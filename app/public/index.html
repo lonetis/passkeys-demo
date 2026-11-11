@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Passkey Takeover Demo</title>
+  <meta name="description" content="Live, guided demo of the passkey Credential Overwrite attack with PASSKEYS-ATTACKER and the Fun with Flags and Passkeys CTF.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%91%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🔑</span>
+      <div>
+        <div class="eyebrow">The State of Passkeys · USENIX Security ’26</div>
+        <h1>Credential Overwrite <span class="arrow">→</span> Account Takeover</h1>
+      </div>
+    </div>
+    <nav class="stepper" id="stepper" aria-label="Demo steps"></nav>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" id="reset-btn" type="button" title="Fresh browsers, extension, key store and CTF instance">⟲ Reset demo</button>
+      <button class="btn btn-ghost btn-icon" id="fullscreen-btn" type="button" title="Toggle fullscreen (F)" aria-label="Toggle fullscreen">⛶</button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage" data-focus="none">
+    <section class="browser" data-role="victim" aria-label="Victim's browser">
+      <div class="browser-head">
+        <span class="role-badge"><span aria-hidden="true">😇</span> Victim’s browser</span>
+        <span class="turn-chip">Your turn</span>
+        <span class="browser-status" data-status="victim">connecting…</span>
+      </div>
+      <div class="screen" id="screen-victim"></div>
+    </section>
+    <section class="browser" data-role="attacker" aria-label="Attacker's browser">
+      <div class="browser-head">
+        <span class="role-badge"><span aria-hidden="true">😈</span> Attacker’s browser</span>
+        <span class="turn-chip">Your turn</span>
+        <span class="browser-status" data-status="attacker">connecting…</span>
+      </div>
+      <div class="screen" id="screen-attacker"></div>
+    </section>
+
+    <div class="setup-card" id="setup-card" hidden>
+      <div class="setup-title"><span class="spinner" aria-hidden="true"></span><span id="setup-heading">Preparing a fresh demo…</span></div>
+      <ol class="setup-stages" id="setup-stages"></ol>
+      <p class="setup-error" id="setup-error" hidden></p>
+      <button class="btn btn-primary" id="setup-retry" type="button" hidden>Try again</button>
+    </div>
+
+    <div class="celebration" id="celebration" hidden></div>
+  </main>
+
+  <section class="guide" id="guide">
+    <article class="card step-card" id="step-card"></article>
+    <article class="card why-card" id="why-card"></article>
+    <article class="card db-card">
+      <header class="card-head">
+        <span class="card-icon" aria-hidden="true">🗄️</span>
+        <div>
+          <h2>Website database</h2>
+          <p class="card-sub">Passkeys stored by the CTF website</p>
+        </div>
+      </header>
+      <table class="db-table">
+        <thead>
+          <tr><th>Credential ID</th><th>Account</th><th>Public key</th></tr>
+        </thead>
+        <tbody id="db-rows"></tbody>
+      </table>
+      <div class="last-login" id="last-login"></div>
+    </article>
+  </section>
+</body>
+</html>
