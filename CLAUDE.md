@@ -74,12 +74,13 @@ Viewer ──HTTP/WS──▶ app ─┬─ demo "full-story"    ──CDP/VNC�
 
 ### Scenarios (`scenarios/*.js`)
 
-A scenario exports `{ id, title, summary, presetNames, separateKeyStores?, setupStages, prepare, observe?, steps, notices }`:
+A scenario exports `{ id, title, summary, presetNames, separateKeyStores?, setupStages, prepare, observe?, steps, diagram, notices }`:
 
 - **`prepare({ browsers, config, onStage })`** composes `setup.js` building blocks and reports progress per stage. Every run uses a fresh CTF instance UUID (and, for remote storage, a fresh secret).
 - **`presetNames`**: usernames created behind the scenes (`null` → learned from the browsers).
 - **`observe(state)`** (optional) latches scenario-specific facts into `facts.scenario` on every tick (`attacker-view`: leaked credential ID, copy detected, Keys tab seen, forged key, recon closed, attacker logged in).
-- **Steps** have `id`, `short`, `marker`, `focus` (acting browser), texts (`kicker`, `title`, `lead`, `points`, `why`, `callout`, `doneMessage`), `tasks`, `complete(state)`, and optionally `quietLoginFailures` (no "login failed" notice, e.g. when cancelling the recon login).
+- **Steps** have `id`, `short`, `marker`, `focus` (acting browser), texts (`kicker`, `title`, `lead`, `points`, `why` = the explainer shown next to the Next button, `doneMessage`), `tasks`, `complete(state)`, and optionally `quietLoginFailures` (no "login failed" notice, e.g. when cancelling the recon login).
+- **`diagram`**: the attack as a sequence diagram, one message per row `{ step, from, to, text, kind?, reached? }` (`from`/`to`: `victim`, `website`, `attacker`; `from === to` draws a note; `kind` `bad`/`leak` overrides the sender's color). Every message belongs to the step that sends it (validated at startup); `reached(state)` marks outcome rows that light up only once they actually happened. Labels name the parties ("victim’s credential ID", "attacker’s key"), never "own".
 
 Setup details worth knowing:
 
@@ -91,18 +92,22 @@ Setup details worth knowing:
 
 - A **tick** (500 ms) snapshots both browsers. On the CTF page: path, logged-in user, form/modal state, username-first form. On the interceptor tab: op, selected options, active passkeys.tools tab, `allowCredentials`, whether the response has a `userHandle`, the Keys form, and the local store's profile credential IDs. The tick then runs `observe`, draws the current task's highlight in the focused browser, and publishes state if it changed.
 - **Task `done` predicates are evaluated live and never latched**, and each one also accepts all later states of the flow. The first unfinished task is therefore always the correct next action, including after detours (closed interceptor, wrong selection sent). Completion of a step depends only on **facts**.
-- Key ownership in the database view comes from the key name prefix (`victim`/`attacker`, or `profile1`/`profile2`).
+- Key ownership comes from the key name prefix of the interceptor selection at Send (`victim`/`attacker`, or `profile1`/`profile2`), falling back to the acting browser's role.
 - **Facts** come from events:
   - `passkey-result`: CTF `/api/passkey/{registration,authentication}/verify` responses, captured via Playwright network events. The credential ID comes from the request body (`credential.id`). These events are also processed while preparing, so pre-registered passkeys appear in the database view; notices and celebrations are only shown when ready.
   - `report`: an init script reports user actions via `exposeBinding`, namely the interceptor selection at the exact moment Send is clicked (`send`) and copied text (`copy`).
 - **Highlights** (`applyHighlights`) outline an element and show a tip. On listbox selects they mark an option. In textareas they select text (`select.text` / `select.pattern`) and re-apply it whenever focus or selection was lost, so one keypress (Ctrl+C, Delete) acts on it. Tips for elements taller than the viewport are pinned to the visible part.
-- The **database view** is a model built from the facts. A registration with a known credential ID that carries a reward means the stored key was overwritten.
+- The **database view** is a model built from the facts: per credential ID the account, whose credential ID it is (the registering browser's role) and whose public key is stored. A registration with a known credential ID that carries a reward means the stored key was overwritten (the previous owner is kept to show the swap). Each passkey login records whose key signed it and whose key was stored for that credential ID at that moment, for the signature check view.
 - **Autopilot** runs the remaining tasks' `run()` functions with Playwright in the real browsers, waiting for each task's predicate before the next one; per-task durations are logged. It is paced for an audience: before each task it pauses (`AUTOPILOT_PAUSE_MS`) while the highlight shows where the action happens, and inside tasks it uses `BEAT_MS`, `TYPING_DELAY_MS` and `SHOW_SELECTION_MS` from `common.js`.
 - Texts are HTML authored in the scenario files; `{victim}`, `{attacker}`, `{flag}` and `{leaked}` are replaced server-side, with user-typed names escaped.
 
 ### UI (`public/`)
 
 - The client renders each section only when its inputs change, so CSS animations don't restart. The top bar links the versions.
+- Guide row: step card (kicker with "Do it for me", title, lead, tasks; the step's `why` explainer next to the Next button), the attack diagram, and the website database with the last login's signature check.
+- The **diagram** is visible on every step. The intro and takeaways show it whole; otherwise the current step's rows sit in a highlighted band with animated arrows, past rows are muted, upcoming rows and outcomes that have not happened yet are dimmed, and the left column repeats the stepper markers.
+- The **database view** shows ownership with role icons and colors (😇 victim, 😈 attacker); an overwritten key is shown struck through with an arrow to the new one. The **signature check** shows signed-with key = / ≠ stored key → result.
+- The layout targets 1920×1080. Below 1500 px width or 950 px height the guide is denser, and ownership chips drop the words "ID"/"key" (the column headers say it).
 - noVNC uses `scaleViewport`. Both panels have equal width, because the 16:10 screens are height-bound at 1080p and a wider active panel would only add letterboxing. The active browser gets a glow and a "Your turn" chip; the other one is dimmed.
 - Celebration overlays cover the browser where it happened (flag and takeover: attacker, lockout: victim), below its header, so the "logged in as" status stays visible.
 

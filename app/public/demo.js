@@ -67,8 +67,8 @@ function render() {
   renderOnce('status', [state.phase, state.browsers], renderBrowserStatus);
   renderOnce('setup', [state.phase, state.setup], renderSetup);
   renderOnce('step', [state.phase, state.stepIndex, step, state.notice, state.autopilotRunning], () => renderStep(step));
-  renderOnce('why', [step.why, step.diagram, step.callout], () => renderWhy(step));
-  renderOnce('db', [state.passkeys, state.lastLogin, state.names, state.leakedCredentialId], renderDatabase);
+  renderOnce('diagram', [state.diagram, state.stepIndex, state.steps.map((s) => [s.id, s.marker, s.complete, s.tasks.length])], renderDiagram);
+  renderOnce('db', [state.passkeys, state.lastLogin], renderDatabase);
   renderCelebration();
 }
 
@@ -124,11 +124,14 @@ function renderStep(step) {
   const points = step.points.length ? `<ul class="step-points">${step.points.map((p) => `<li>${p}</li>`).join('')}</ul>` : '';
   const tasks = hasTasks ? `<ol class="tasks">${step.tasks.map((task) => `
       <li class="task${task.done ? ' done' : ''}${task.current ? ' current' : ''}"><span class="task-text">${task.html}</span></li>`).join('')}</ol>` : '';
-  const done = step.complete && step.doneMessage ? `<div class="alert alert-ok done-pill">${step.doneMessage}</div>` : '';
+  const done = step.complete && step.doneMessage ? `<div class="alert alert-ok">${step.doneMessage}</div>` : '';
   const notice = state.notice ? `<div class="alert alert-${esc(state.notice.level)}">${state.notice.html}</div>` : '';
+  const explainer = step.why
+    ? `<div class="explainer"><b class="explainer-title"><span aria-hidden="true">💡</span> ${esc(step.why.title)}:</b> ${step.why.body}</div>`
+    : '<span class="spacer"></span>';
 
   const autopilotButton = hasTasks && !step.complete
-    ? `<button class="btn btn-outline" type="button" data-action="autopilot" ${ready && !state.autopilotRunning ? '' : 'disabled'}>
+    ? `<button class="btn btn-outline btn-small" type="button" data-action="autopilot" ${ready && !state.autopilotRunning ? '' : 'disabled'}>
         ${state.autopilotRunning ? '<span class="spinner"></span> Running…' : '▶ Do it for me'}</button>`
     : '';
   const nextLabel = isFirst ? 'Start the demo →' : step.bonus ? (step.complete ? 'Takeaways →' : 'Skip to takeaways →') : 'Next →';
@@ -138,39 +141,96 @@ function renderStep(step) {
   const backButton = isFirst ? '' : `<button class="btn btn-ghost" type="button" data-action="prev" ${ready ? '' : 'disabled'}>←</button>`;
 
   card.innerHTML = `
-    <div class="step-scroll">
+    <div class="step-head">
       <div class="kicker">${esc(step.kicker)}</div>
+      ${autopilotButton}
+    </div>
+    <div class="step-scroll">
       <h2 class="step-title">${step.title}</h2>
-      ${step.lead ? `<p class="step-lead">${step.lead}</p>` : ''}
+      ${step.lead && !(hasTasks && step.complete) ? `<p class="step-lead">${step.lead}</p>` : ''}
       ${points}
       ${tasks}
+      ${done}
       ${notice}
     </div>
     <div class="step-actions">
       ${backButton}
-      ${autopilotButton}
-      ${done || '<span class="spacer"></span>'}
-      ${isFirst && !ready ? '<span class="hint">Browsers are being prepared…</span>' : ''}
+      ${explainer}
       ${nextButton}
     </div>`;
   const scroller = card.querySelector('.step-scroll');
-  const highlight = scroller.querySelector('.alert') ?? scroller.querySelector('.task.current');
+  const highlight = scroller.querySelector('.alert:last-child') ?? scroller.querySelector('.task.current');
   if (highlight) highlight.scrollIntoView({ block: 'nearest' });
   else scroller.scrollTop = 0;
 }
 
 const DIAGRAM = Object.freeze({
-  width: 520,
-  lanes: { victim: 70, website: 260, attacker: 450 },
+  width: 560,
+  lanes: { victim: 100, website: 290, attacker: 480 },
   laneTitles: { victim: '😇 Victim', website: '🌐 Website', attacker: '😈 Attacker' },
-  top: 54,
-  row: 32,
+  /** y of the first message row, distance between rows, x of the step markers. */
+  top: 62,
+  row: 29,
+  markerX: 16,
+  /** Rough label width per character, to keep labels and notes inside the diagram. */
+  charWidth: 6.7,
 });
 
-/** A small sequence diagram: lanes for victim, website and attacker, one arrow per message. */
-function renderDiagram(diagram) {
-  const { width, lanes, laneTitles, top, row } = DIAGRAM;
-  const height = top + diagram.messages.length * row - 4;
+/**
+ * How a diagram row looks on the current step: the whole diagram on the intro and the
+ * takeaways; otherwise past rows, the current step's rows (outcomes only once they
+ * happened), and dimmed upcoming rows.
+ */
+function rowStatus(message, stepOrder, overview) {
+  if (overview) return 'all';
+  const index = stepOrder.get(message.step);
+  if (index > state.stepIndex) return 'future';
+  if (message.reached === false) return index === state.stepIndex ? 'waiting' : 'future';
+  return index === state.stepIndex ? 'active' : 'past';
+}
+
+/** Centers a box of the given width near x without leaving the diagram (or covering the step markers). */
+function clampCenter(x, boxWidth) {
+  const min = DIAGRAM.markerX + 16 + boxWidth / 2;
+  const max = DIAGRAM.width - 4 - boxWidth / 2;
+  return Math.max(min, Math.min(max, x));
+}
+
+/** Sequence diagram of the whole attack (victim · website · attacker), current step highlighted. */
+function renderDiagram() {
+  const { width, lanes, laneTitles, top, row, markerX, charWidth } = DIAGRAM;
+  const messages = state.diagram;
+  const card = $('#diagram-card');
+  if (!messages.length) {
+    card.innerHTML = '';
+    return;
+  }
+  const height = top + (messages.length - 1) * row + 14;
+  const stepOrder = new Map(state.steps.map((step, index) => [step.id, index]));
+  const overview = state.steps[state.stepIndex].tasks.length === 0;
+
+  const groups = [];
+  messages.forEach((message, index) => {
+    const last = groups.at(-1);
+    if (last?.step === message.step) last.end = index;
+    else groups.push({ step: message.step, start: index, end: index });
+  });
+  const steps = groups.map((group) => {
+    const index = stepOrder.get(group.step);
+    const step = state.steps[index];
+    const current = !overview && index === state.stepIndex;
+    const y1 = top + group.start * row - 22;
+    const y2 = top + group.end * row + 9;
+    const cy = (y1 + y2) / 2;
+    const done = step.complete && index < state.stepIndex;
+    return `
+      ${current ? `<rect class="dg-band" x="2" y="${y1}" width="${width - 4}" height="${y2 - y1}" rx="9"/>` : ''}
+      <g class="dg-marker${current ? ' is-current' : ''}${done ? ' is-done' : ''}">
+        <circle cx="${markerX}" cy="${cy}" r="10"/>
+        <text x="${markerX}" y="${cy + 4}" text-anchor="middle">${done ? '✓' : esc(step.marker)}</text>
+      </g>`;
+  }).join('');
+
   const tones = ['victim', 'website', 'attacker', 'bad', 'leak'];
   const markers = tones.map((tone) => `
     <marker id="dg-arrow-${tone}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -180,92 +240,69 @@ function renderDiagram(diagram) {
     <rect x="${x - 58}" y="4" width="116" height="26" rx="13" class="dg-head dg-head-${lane}"/>
     <text x="${x}" y="21.5" text-anchor="middle" class="dg-head-text">${esc(laneTitles[lane])}</text>
     <line x1="${x}" y1="34" x2="${x}" y2="${height}" class="dg-lifeline"/>`).join('');
-  const messages = diagram.messages.map((message, index) => {
+
+  const rows = messages.map((message, index) => {
     const y = top + index * row;
     const tone = message.kind ?? message.from;
+    const status = rowStatus(message, stepOrder, overview);
+    const labelWidth = message.text.length * charWidth;
     if (message.from === message.to) {
-      const x = lanes[message.from];
-      return `
-        <rect x="${x - 92}" y="${y - 16}" width="184" height="22" rx="6" class="dg-note dg-note-${tone}"/>
-        <text x="${x}" y="${y - 1}" text-anchor="middle" class="dg-label dg-fill-${tone}">${esc(message.text)}</text>`;
+      const boxWidth = labelWidth + 22;
+      const x = clampCenter(lanes[message.from], boxWidth);
+      return `<g class="dg-row is-${status}">
+        <rect x="${x - boxWidth / 2}" y="${y - 16}" width="${boxWidth}" height="22" rx="6" class="dg-note dg-note-${tone}"/>
+        <text x="${x}" y="${y - 1}" text-anchor="middle" class="dg-label dg-fill-${tone}">${esc(message.text)}</text></g>`;
     }
     const x1 = lanes[message.from];
     const x2 = lanes[message.to];
     const end = x2 + (x2 > x1 ? -4 : 4);
-    return `
+    return `<g class="dg-row is-${status}">
       <line x1="${x1}" y1="${y}" x2="${end}" y2="${y}" class="dg-arrow dg-stroke-${tone}" marker-end="url(#dg-arrow-${tone})"/>
-      <text x="${(x1 + x2) / 2}" y="${y - 6}" text-anchor="middle" class="dg-label dg-fill-${tone}">${esc(message.text)}</text>`;
+      <text x="${clampCenter((x1 + x2) / 2, labelWidth)}" y="${y - 6}" text-anchor="middle" class="dg-label dg-fill-${tone}">${esc(message.text)}</text></g>`;
   }).join('');
-  return `<svg class="diagram" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(diagram.title)}">
-    <defs>${markers}</defs>${heads}${messages}</svg>`;
+
+  card.innerHTML = `<svg class="diagram" viewBox="0 0 ${width} ${height}" role="img" aria-label="The attack at a glance">
+    <defs>${markers}</defs>${steps}${heads}${rows}</svg>`;
 }
 
-function renderWhy(step) {
-  const card = $('#why-card');
-  if (step.diagram) {
-    card.innerHTML = `
-      <header class="card-head">
-        <span class="card-icon" aria-hidden="true">🗺️</span>
-        <h2>${esc(step.diagram.title)}</h2>
-      </header>
-      ${renderDiagram(step.diagram)}
-      ${step.callout ? `<div class="callout">${step.callout}</div>` : ''}`;
-    return;
-  }
-  if (!step.why) {
-    card.innerHTML = '';
-    return;
-  }
-  card.innerHTML = `
-    <header class="card-head">
-      <span class="card-icon" aria-hidden="true">💡</span>
-      <h2>${esc(step.why.title)}</h2>
-    </header>
-    <p class="why-body">${step.why.body}</p>
-    ${step.callout ? `<div class="callout">${step.callout}</div>` : ''}`;
-}
+const PARTY = Object.freeze({
+  victim: { icon: '😇', name: 'victim’s' },
+  attacker: { icon: '😈', name: 'attacker’s' },
+});
 
-function roleOfAccount(account) {
-  if (account && account === state.names.victim) return 'victim';
-  if (account && account === state.names.attacker) return 'attacker';
-  return '';
+/** "😇 victim’s key" chip in the party's color. */
+function partyChip(owner, thing, extraClass = '') {
+  const party = PARTY[owner];
+  const label = party ? `${party.icon} ${party.name}<span class="chip-thing"> ${thing}</span>` : `unknown ${thing}`;
+  return `<span class="party-chip ${party ? owner : ''} ${extraClass}">${label}</span>`;
 }
-
-const KEY_LABEL = { victim: 'victim’s key', attacker: 'attacker’s key' };
-const shortId = (id) => (id && id.length > 18 ? `${id.slice(0, 10)}…${id.slice(-4)}` : id ?? '');
 
 function renderDatabase() {
-  const rows = state.passkeys.map((row) => `
+  $('#db-rows').innerHTML = state.passkeys.map((row) => `
     <tr class="${row.overwritten ? 'overwritten' : ''}">
-      <td>
-        <span class="cred-name">${esc(row.credentialName ?? 'unknown')}</span><span class="cred-id">${esc(shortId(row.credentialId))}</span>
-        ${state.leakedCredentialId && row.credentialId === state.leakedCredentialId ? '<span class="leak-tag">🔎 known to attacker</span>' : ''}
-      </td>
-      <td><span class="account ${roleOfAccount(row.account)}">${esc(row.account)}</span></td>
-      <td>
-        <span class="key-chip ${esc(row.keyOwner ?? '')}">🔑 ${esc(KEY_LABEL[row.keyOwner] ?? 'unknown key')}</span>
-        <span class="cred-id">${esc(row.keyName ?? '')}</span>
-        ${row.overwritten ? '<span class="overwrite-tag">OVERWRITTEN</span>' : ''}
-      </td>
-    </tr>`).join('');
-  $('#db-rows').innerHTML = rows || '<tr class="db-empty"><td colspan="3">No passkeys registered yet.</td></tr>';
-
-  $('#leaked-id').innerHTML = state.leakedCredentialId ? `
-    <div class="card-sub" style="margin-bottom:4px">Leaked to the attacker at login (allowCredentials)</div>
-    <code>${esc(shortId(state.leakedCredentialId))}</code>` : '';
+      <td><span class="account-name">${PARTY[row.accountRole]?.icon ?? ''} ${esc(row.account)}</span></td>
+      <td>${partyChip(row.idOwner, 'ID')}</td>
+      <td><span class="key-cell">${row.overwritten
+        ? `${partyChip(row.previousKeyOwner, 'key', 'replaced')}<span class="replacement"><span class="replaced-arrow" aria-label="replaced by">→</span>${partyChip(row.keyOwner, 'key')}</span>`
+        : partyChip(row.keyOwner, 'key')}</span></td>
+    </tr>`).join('') || '<tr class="db-empty"><td colspan="3">No passkeys registered yet.</td></tr>';
 
   const login = state.lastLogin;
-  $('#last-login').innerHTML = login ? `
-    <div class="card-sub" style="margin-bottom:4px">Last passkey login</div>
-    <div class="login-line">
-      <span class="account ${login.role}">${login.role === 'victim' ? 'Victim’s browser' : 'Attacker’s browser'}</span>
-      used credential <code>${esc(shortId(login.credentialId ?? '?'))}</code>
-      signed with <span class="key-chip ${esc(login.keyOwner ?? '')}">🔑 ${esc(KEY_LABEL[login.keyOwner] ?? 'unknown key')}</span>
-      →
-      ${login.ok
-        ? `<span class="login-result ok">✓ logged in as ${esc(login.user)}</span>`
-        : `<span class="login-result fail">✗ ${esc(login.error ?? 'failed')}</span>`}
-    </div>` : '';
+  if (!login) {
+    $('#login-check').innerHTML = '<p class="login-empty">At login, the website checks the browser’s signature with the stored public key.</p>';
+    return;
+  }
+  const match = Boolean(login.signedWith) && login.signedWith === login.storedKey;
+  let result = `<span class="sig-result fail">✗ Login failed: ${esc(login.error)}</span>`;
+  if (login.ok) result = `<span class="sig-result ok">✓ Signature valid → logged in as <b>${esc(login.user)}</b></span>`;
+  else if (!match) result = '<span class="sig-result fail">✗ Signature invalid → login failed</span>';
+  $('#login-check').innerHTML = `
+    <div class="sig-flow">
+      <div class="sig-col"><span class="sig-caption">Browser signed with</span>${partyChip(login.signedWith, 'key')}</div>
+      <span class="sig-op ${match ? 'ok' : 'fail'}" title="${match ? 'matches' : 'does not match'}">${match ? '=' : '≠'}</span>
+      <div class="sig-col"><span class="sig-caption">Website checks with</span>${partyChip(login.storedKey, 'key')}</div>
+    </div>
+    ${result}`;
 }
 
 function celebrationMarkup(celebration) {

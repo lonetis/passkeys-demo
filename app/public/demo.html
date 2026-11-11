@@ -56,23 +56,22 @@
 
   <section class="guide" id="guide">
     <article class="card step-card" id="step-card"></article>
-    <article class="card why-card" id="why-card"></article>
+    <article class="card diagram-card" id="diagram-card" aria-label="The attack at a glance"></article>
     <article class="card db-card">
       <header class="card-head">
         <span class="card-icon" aria-hidden="true">🗄️</span>
-        <div>
-          <h2>Website database</h2>
-          <p class="card-sub">Passkeys stored by the CTF website</p>
-        </div>
+        <h2>Website database</h2>
       </header>
       <table class="db-table">
         <thead>
-          <tr><th>Credential ID</th><th>Account</th><th>Public key</th></tr>
+          <tr><th>Account</th><th>Credential ID</th><th>Public key</th></tr>
         </thead>
         <tbody id="db-rows"></tbody>
       </table>
-      <div class="leaked-id" id="leaked-id"></div>
-      <div class="last-login" id="last-login"></div>
+      <section class="login-check" aria-label="Signature check at the last passkey login">
+        <h3><span aria-hidden="true">🔏</span> Login: signature check</h3>
+        <div id="login-check"></div>
+      </section>
     </article>
   </section>
 </body>

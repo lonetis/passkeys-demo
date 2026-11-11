@@ -65,21 +65,10 @@ const steps = [
     title: 'Credential Overwrite → Account Takeover',
     lead: 'The attacker takes over the victim’s account by replacing the victim’s passkey key on the website.',
     points: [
-      '<span class="tag victim">Left</span> victim, <span class="tag attacker">right</span> attacker: real browsers with PASSKEYS-ATTACKER as authenticator.',
+      '<span class="tag victim">Left</span> victim, <span class="tag attacker">right</span> attacker: real browsers with PASSKEYS-ATTACKER as authenticator, sharing one key store.',
       'Target: our vulnerable CTF website (bug: WebAuthn §7.1.26).',
     ],
-    diagram: {
-      title: 'The attack at a glance',
-      messages: [
-        { from: 'victim', to: 'website', text: 'Register passkey (victim’s key)' },
-        { from: 'attacker', to: 'website', text: 'Register victim’s ID + own key' },
-        { from: 'website', to: 'website', text: 'Overwrites victim’s key', kind: 'bad' },
-        { from: 'attacker', to: 'website', text: 'Log in as victim (own key)' },
-        { from: 'website', to: 'attacker', text: '✓ Account takeover', kind: 'bad' },
-        { from: 'victim', to: 'website', text: 'Log in with own key' },
-        { from: 'website', to: 'victim', text: '✗ Locked out', kind: 'bad' },
-      ],
-    },
+    why: { title: 'How to follow', body: 'The diagram shows the whole attack; the current step lights up.' },
     tasks: [],
     complete: () => true,
   },
@@ -104,7 +93,7 @@ const steps = [
     kicker: 'Step 2 · Victim',
     title: 'The victim registers a passkey',
     lead: 'PASSKEYS-ATTACKER acts as the victim’s authenticator.',
-    why: { title: 'What the website stores', body: 'Credential ID, account and <b>public key</b> — see the database on the right.' },
+    why: { title: 'What the website stores', body: 'Account, credential ID and <b>public key</b> — see the database on the right.' },
     tasks: [
       openSettingsTask('victim', victimHasPasskey),
       ...addPasskeyTasks('victim', victimHasPasskey),
@@ -135,12 +124,11 @@ const steps = [
     focus: 'attacker',
     kicker: 'Step 4 · Attacker',
     title: 'Register the victim’s credential ID',
-    lead: 'Own account, <span class="victim-text">victim’s</span> credential ID, <span class="attacker-text">attacker’s</span> key.',
+    lead: 'Attacker’s account, but the <span class="victim-text">victim’s</span> credential ID (from the shared key store) and the <span class="attacker-text">attacker’s</span> key.',
     why: {
       title: 'The bug',
-      body: 'The website should reject a known credential ID (WebAuthn §7.1.26). Instead, it <b>replaces the victim’s public key</b> with the attacker’s.',
+      body: 'The website should reject a known credential ID (WebAuthn §7.1.26), but it <b>replaces the victim’s public key</b> with the attacker’s.',
     },
-    callout: 'Credential IDs aren’t secret — login pages reveal them. Here, both browsers share one key store.',
     tasks: [
       openSettingsTask('attacker', keyOverwritten),
       ...addPasskeyTasks('attacker', keyOverwritten),
@@ -161,7 +149,7 @@ const steps = [
     lead: 'Victim’s credential ID, signed with the attacker’s key.',
     why: {
       title: 'Why it works',
-      body: 'The website checks the signature with the stored key — now the attacker’s. Valid, so the attacker is in <b>as the victim</b>.',
+      body: 'The website checks the signature with the stored key — now the attacker’s — so the attacker is in <b>as the victim</b>.',
     },
     tasks: [
       logoutTask('attacker', 'Close the pop-up, then <b>{attacker}</b> → <b>Logout</b>', attackerIsVictim),
@@ -216,6 +204,19 @@ const steps = [
   },
 ];
 
+/** The attack at a glance: one row per message, each belonging to the step that sends it. */
+const diagram = [
+  { step: 'victim-signup', from: 'victim', to: 'website', text: 'Sign up' },
+  { step: 'victim-passkey', from: 'victim', to: 'website', text: 'Register: victim’s credential ID + victim’s key' },
+  { step: 'attacker-signup', from: 'attacker', to: 'website', text: 'Sign up' },
+  { step: 'overwrite', from: 'attacker', to: 'website', text: 'Register: victim’s credential ID + attacker’s key' },
+  { step: 'overwrite', from: 'website', to: 'website', text: 'Replaces victim’s key with attacker’s key', kind: 'bad', reached: keyOverwritten },
+  { step: 'takeover', from: 'attacker', to: 'website', text: 'Log in as victim, signed with attacker’s key' },
+  { step: 'takeover', from: 'website', to: 'attacker', text: '✓ Signature valid: logged in as victim', kind: 'bad', reached: attackerIsVictim },
+  { step: 'lockout', from: 'victim', to: 'website', text: 'Log in as victim, signed with victim’s key' },
+  { step: 'lockout', from: 'website', to: 'victim', text: '✗ Signature invalid: locked out', kind: 'bad', reached: victimLockedOut },
+];
+
 export default {
   id: 'full-story',
   title: 'Full story',
@@ -224,6 +225,7 @@ export default {
   setupStages: SETUP_STAGES,
   prepare,
   steps,
+  diagram,
   notices: {
     overwriteMissed: `That created a brand-new passkey for the attacker — its credential ID was not the victim’s. Try again: <b>+ Add Passkey</b>, then pick <code>${VICTIM_KEY}</code> as Credential ID.`,
   },

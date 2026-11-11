@@ -23,8 +23,12 @@ function emptyFacts(presetNames) {
     overwrite: null,
     takeover: null,
     lockout: null,
-    /** Model of the website's passkey table, keyed by credential ID (base64url). */
+    /**
+     * Model of the website's passkey table, keyed by credential ID (base64url). Each row
+     * records whose credential ID and whose public key it holds (victim/attacker).
+     */
     passkeys: new Map(),
+    /** Last passkey login: whose key signed it, whose key the website checked it with. */
     lastLogin: null,
     /** Facts a scenario latches itself in its observe() hook. */
     scenario: {},
@@ -36,6 +40,22 @@ function keyOwner(keyName) {
   return ownerOf(String(keyName ?? '').split(' | ')[0]);
 }
 
+/** Evaluates a guide predicate; a predicate that throws (e.g. on missing state) does not hold. */
+function holds(predicate, state) {
+  try {
+    return Boolean(predicate(state));
+  } catch {
+    return false;
+  }
+}
+
+function validateDiagram(scenario) {
+  const stepIds = new Set(scenario.steps.map((step) => step.id));
+  for (const message of scenario.diagram ?? []) {
+    if (!stepIds.has(message.step)) throw new Error(`Scenario "${scenario.id}": diagram message "${message.text}" names unknown step "${message.step}"`);
+  }
+}
+
 /**
  * Runs one demo instance: a scenario on its own pair of browsers. Prepares the browsers,
  * follows what happens in them, evaluates the guide, draws highlights, and publishes one
@@ -44,6 +64,7 @@ function keyOwner(keyName) {
 export class DemoController extends EventEmitter {
   constructor(scenario, browsers, config, catalog) {
     super();
+    validateDiagram(scenario);
     this.scenario = scenario;
     this.steps = scenario.steps;
     this.browsers = browsers;
@@ -146,15 +167,18 @@ export class DemoController extends EventEmitter {
       }
       const existing = facts.passkeys.get(result.credentialId);
       const reward = result.body?.reward ?? null;
+      const registeredKey = keyOwner(send?.key) ?? role;
       if (existing && reward) {
-        existing.keyName = send?.key ?? null;
+        existing.previousKeyOwner = existing.keyOwner;
+        existing.keyOwner = registeredKey;
         existing.overwritten = true;
       } else {
         facts.passkeys.set(result.credentialId, {
-          credentialId: result.credentialId,
-          credentialName: send?.credentialId ?? null,
           account: account ?? role,
-          keyName: send?.key ?? null,
+          accountRole: role,
+          idOwner: role,
+          keyOwner: registeredKey,
+          previousKeyOwner: null,
           overwritten: false,
         });
       }
@@ -179,8 +203,9 @@ export class DemoController extends EventEmitter {
       ok: result.ok,
       user: loggedInAs,
       error: result.ok ? null : (result.body?.error ?? `HTTP ${result.status}`),
-      credentialId: result.credentialId,
-      keyName: send?.key ?? null,
+      signedWith: keyOwner(send?.key) ?? role,
+      storedKey: facts.passkeys.get(result.credentialId)?.keyOwner ?? null,
+      at: Date.now(),
     };
     if (role === 'attacker' && result.ok && loggedInAs && loggedInAs === facts.names.victim && !facts.takeover) {
       facts.takeover = { user: loggedInAs };
@@ -223,12 +248,7 @@ export class DemoController extends EventEmitter {
   evaluateStep(step, state) {
     let currentFound = false;
     return step.tasks.map((task) => {
-      let done = false;
-      try {
-        done = Boolean(task.done(state));
-      } catch {
-        done = false;
-      }
+      const done = holds(task.done, state);
       const current = !done && !currentFound;
       if (current) currentFound = true;
       return { task, done, current };
@@ -369,12 +389,7 @@ export class DemoController extends EventEmitter {
     const state = this.guideState();
     const stepViews = this.steps.map((step, index) => {
       const evaluated = index === this.stepIndex ? this.evaluateStep(step, state) : step.tasks.map((task) => ({ task, done: false, current: false }));
-      let complete = false;
-      try {
-        complete = this.phase === 'ready' && step.complete(state);
-      } catch {
-        complete = false;
-      }
+      const complete = this.phase === 'ready' && holds(step.complete, state);
       return {
         id: step.id,
         short: step.short,
@@ -386,23 +401,17 @@ export class DemoController extends EventEmitter {
         lead: step.lead ? this.render(step.lead) : null,
         points: (step.points ?? []).map((point) => this.render(point)),
         why: step.why ? { title: step.why.title, body: this.render(step.why.body) } : null,
-        diagram: step.diagram ?? null,
-        callout: step.callout ? this.render(step.callout) : null,
         doneMessage: step.doneMessage ? this.render(step.doneMessage) : null,
         complete,
         tasks: evaluated.map(({ task, done, current }) => ({ id: task.id, html: this.render(task.text), done, current })),
       };
     });
 
-    const passkeys = [...this.facts.passkeys.values()].map((row) => ({
-      credentialId: row.credentialId,
-      credentialName: row.credentialName,
-      account: row.account,
-      keyName: row.keyName,
-      keyOwner: keyOwner(row.keyName),
-      overwritten: row.overwritten,
+    // Outcome rows ("reached") light up only once they actually happened.
+    const diagram = (this.scenario.diagram ?? []).map(({ reached, ...message }) => ({
+      ...message,
+      reached: reached ? this.phase === 'ready' && holds(reached, state) : null,
     }));
-    const lastLogin = this.facts.lastLogin ? { ...this.facts.lastLogin, keyOwner: keyOwner(this.facts.lastLogin.keyName) } : null;
 
     return {
       demo: { id: this.scenario.id, title: this.scenario.title },
@@ -412,9 +421,9 @@ export class DemoController extends EventEmitter {
       stepIndex: this.stepIndex,
       steps: stepViews,
       names: this.facts.names,
-      passkeys,
-      leakedCredentialId: this.facts.scenario.leakedCredentialId ?? null,
-      lastLogin,
+      diagram,
+      passkeys: [...this.facts.passkeys.values()],
+      lastLogin: this.facts.lastLogin,
       notice: this.notice,
       celebration: this.celebration,
       autopilotRunning: this.autopilotRunning,

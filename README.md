@@ -10,10 +10,11 @@ Live, guided demos of a passkey attack from our paper *The State of Passkeys* (U
 - Real, interactive Chromium browsers streamed into the page (noVNC), each with its own skin color
 - PASSKEYS-ATTACKER's profile keys are labeled by role in the demo browsers (`victim | ES256`, `attacker | ES256`) instead of `profile1`/`profile2`
 - One-click setup and reset per version: fresh browser profiles, the PASSKEYS-ATTACKER extension installed and configured, key stores, and a fresh CTF instance with the vulnerable verifier preselected
-- Step-by-step guide that follows what happens in the browsers live and checks off each action
+- Step-by-step guide that follows what happens in the browsers live and checks off each action, with a short explanation of why next to the Next button
+- A diagram of the whole attack, visible throughout the demo, that highlights the current step
 - "Click here" highlights inside the real browsers, including which option to pick and which text to copy or delete
 - "Do it for me" button per step that performs the actions visibly in the browsers, at a pace the audience can follow
-- Live view of the website's passkey database that shows the victim's public key being overwritten
+- Live view of the website's passkey database that shows whose credential ID and whose public key each passkey holds, so the overwrite of the victim's key is visible, plus a signature check for every passkey login (signed with which key, checked against which stored key)
 - Flag-captured, account-takeover and victim-lockout moments, plus a takeaways slide
 - Keyboard and presenter-remote navigation (PageUp/PageDown, arrow keys, `F` for fullscreen)
 - Basic-auth protection; the browsers can only navigate to the demo sites
