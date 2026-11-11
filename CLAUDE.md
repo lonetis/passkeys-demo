@@ -104,7 +104,7 @@ Setup details worth knowing:
 
 - The client renders each section only when its inputs change, so CSS animations don't restart. The top bar links the versions.
 - noVNC uses `scaleViewport`. Both panels have equal width, because the 16:10 screens are height-bound at 1080p and a wider active panel would only add letterboxing. The active browser gets a glow and a "Your turn" chip; the other one is dimmed.
-- Celebration overlays cover the *non-acting* browser, so the real result (e.g. the CTF's flag modal) stays visible.
+- Celebration overlays cover the browser where it happened (flag and takeover: attacker, lockout: victim), below its header, so the "logged in as" status stays visible.
 
 ## Conventions
 

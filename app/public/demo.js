@@ -281,13 +281,13 @@ function celebrationMarkup(celebration) {
       return `<div class="celebration-card attacker">
         <div class="celebration-emoji">😈</div>
         <div class="celebration-title">Account takeover!</div>
-        <div class="celebration-text">The attacker is logged in as <b>${victim}</b> — using the attacker’s own key.</div>
+        <div class="celebration-text">The attacker is logged in as <b>${victim}</b> — with the attacker’s key.</div>
         <div class="celebration-hint">click to close</div></div>`;
     case 'lockout':
       return `<div class="celebration-card victim">
         <div class="celebration-emoji">🔒</div>
         <div class="celebration-title">Victim locked out</div>
-        <div class="celebration-text"><b>${victim}</b> can no longer log in with their own passkey.</div>
+        <div class="celebration-text"><b>${victim}</b> can no longer log in with the victim’s passkey.</div>
         <div class="celebration-hint">click to close</div></div>`;
     default:
       return '';
@@ -310,8 +310,8 @@ function renderCelebration() {
     return;
   }
   overlay.innerHTML = celebrationMarkup(celebration);
-  // Cover the browser that is not acting, so the real result stays visible in the other one.
-  overlay.dataset.side = celebration.kind === 'lockout' ? 'right' : 'left';
+  // Over the browser where it happened: the victim's browser is on the left, the attacker's on the right.
+  overlay.dataset.side = celebration.kind === 'lockout' ? 'left' : 'right';
   overlay.hidden = false;
   clearTimeout(celebrationTimer);
   celebrationTimer = setTimeout(() => { overlay.hidden = true; }, CELEBRATION_MS);
