@@ -104,7 +104,7 @@ const attackerLoggedIn = (s) => Boolean(recon(s).attackerLoggedIn) || keyOverwri
 
 const copyCredentialIdTask = {
   id: 'copy-credential-id',
-  text: 'The interceptor shows the website’s request: <code>allowCredentials</code> holds the victim’s credential ID. Copy it (<b>Ctrl+C</b>)',
+  text: 'Copy the victim’s ID from <code>allowCredentials</code> (<b>Ctrl+C</b>)',
   done: idFound,
   highlight: (s) => (interceptorOpen(s, 'attacker', 'get') && leakedId(s) ? {
     page: 'interceptor',
@@ -132,7 +132,7 @@ const copyCredentialIdTask = {
 
 const openKeysTabTask = {
   id: 'open-keys-tab',
-  text: 'Open PASSKEYS-ATTACKER’s <b>Keys</b> tab (☰ menu → <b>Keys</b>)',
+  text: 'Open the <b>Keys</b> tab (☰ menu)',
   done: (s) => interceptor(s, 'attacker')?.tab === '/keys' || keyForged(s),
   highlight: (s) => (interceptorOpen(s, 'attacker', 'get') ? passkeysToolsTabHighlight(s, 'attacker', 'keys', 'Click “Keys”') : null),
   run: async ({ browser }) => {
@@ -143,7 +143,7 @@ const openKeysTabTask = {
 
 const pasteCredentialIdTask = {
   id: 'paste-credential-id',
-  text: 'Under <b>Update Credential ID</b>, paste it into <b>B64URL</b> (<b>Ctrl+V</b>)',
+  text: 'Paste it into <b>B64URL</b> (<b>Ctrl+V</b>)',
   done: (s) => interceptor(s, 'attacker')?.keysForm.b64url.trim() === leakedId(s) || keyForged(s),
   highlight: (s) => (interceptor(s, 'attacker')?.tab === '/keys' ? {
     page: 'interceptor',
@@ -162,7 +162,7 @@ const pasteCredentialIdTask = {
 
 const chooseOwnKeyTask = {
   id: 'choose-own-key',
-  text: `Make sure the attacker’s own key <code>${ATTACKER_KEY}</code> is selected`,
+  text: `Key: <code>${ATTACKER_KEY}</code>`,
   done: (s) => interceptor(s, 'attacker')?.keysForm.key === ATTACKER_KEY || keyForged(s),
   highlight: (s) => (interceptor(s, 'attacker')?.tab === '/keys' ? {
     page: 'interceptor',
@@ -190,7 +190,7 @@ const updateKeyTask = {
 
 const dismissLoginTask = {
   id: 'dismiss-login',
-  text: 'Back in the <b>Interceptor</b> tab, click <b>Dismiss</b> to cancel this login',
+  text: 'Back to <b>Interceptor</b> → <b>Dismiss</b>',
   done: reconFinished,
   highlight: (s) => {
     if (!interceptorOpen(s, 'attacker', 'get')) return null;
@@ -217,19 +217,26 @@ const steps = [
     short: 'Intro',
     marker: 'i',
     focus: null,
-    kicker: 'Live demo · The attacker’s view',
+    kicker: 'Live demo · Attacker’s view',
     title: 'From a username to account takeover',
-    lead: 'The attacker knows nothing but the victim’s username. Watch them find the victim’s credential ID, overwrite the victim’s passkey, and take over the account.',
+    lead: 'The attacker knows only the victim’s username.',
     points: [
-      '<span class="tag victim">Left</span> the victim: signed in, with a passkey, on the passkey management page. <span class="tag attacker">Right</span> the attacker: an ordinary account on the same website, logged out.',
-      'Both use <b>PASSKEYS-ATTACKER</b> as their authenticator, but share nothing: separate keys, separate storage. The attacker never touches the victim’s device.',
-      'The CTF website uses a username-first login and has a registration bug (verifier “Cred Overwrite”, WebAuthn §7.1.26).',
+      '<span class="tag victim">Left</span> victim: signed in, with a passkey. <span class="tag attacker">Right</span> attacker: own account, logged out.',
+      'Both use PASSKEYS-ATTACKER, but share nothing except the website.',
     ],
-    why: {
-      title: 'Passkeys in 20 seconds',
-      body: 'A passkey is a key pair. The <b>private key</b> never leaves the user’s device. The website stores the <b>public key</b> together with a <b>credential ID</b> that names the passkey. To log in, the device signs a challenge, and the website checks the signature with the stored public key.',
+    diagram: {
+      title: 'The attack at a glance',
+      messages: [
+        { from: 'attacker', to: 'website', text: 'Log in as “victim”' },
+        { from: 'website', to: 'attacker', text: 'Victim’s credential ID', kind: 'leak' },
+        { from: 'attacker', to: 'website', text: 'Register victim’s ID + own key' },
+        { from: 'website', to: 'website', text: 'Overwrites victim’s key', kind: 'bad' },
+        { from: 'attacker', to: 'website', text: 'Log in as victim (own key)' },
+        { from: 'website', to: 'attacker', text: '✓ Account takeover', kind: 'bad' },
+        { from: 'victim', to: 'website', text: 'Log in with own key' },
+        { from: 'website', to: 'victim', text: '✗ Locked out', kind: 'bad' },
+      ],
     },
-    callout: 'Already done behind the scenes: fresh browsers with the extension, a fresh CTF instance, the account <code>victim</code> with a passkey (see the database on the right), and the attacker’s account <code>attacker</code>.',
     tasks: [],
     complete: () => true,
   },
@@ -240,14 +247,14 @@ const steps = [
     focus: 'attacker',
     quietLoginFailures: true,
     kicker: 'Step 1 · Attacker',
-    title: 'Find out the victim’s credential ID',
-    lead: 'The attacker starts a login as the victim. That is enough: the website answers with the victim’s credential ID.',
+    title: 'Find the victim’s credential ID',
+    lead: 'Start a login as the victim — the website answers with the ID.',
     why: {
       title: 'The leak',
-      body: 'With a username-first login, the website tells the authenticator which passkeys may answer: it returns the user’s credential IDs in <code>allowCredentials</code> — to <b>anyone</b> who types the username. That is allowed: credential IDs are not secrets, so no website may rely on them being secret.',
+      body: 'Username-first logins return the user’s credential IDs (<code>allowCredentials</code>) to anyone. That’s allowed: credential IDs aren’t secret.',
     },
     tasks: [
-      usernameFirstPasskeyLoginTask('attacker', victimName, 'Click <b>Login</b>, type the victim’s username <code>{victim}</code>, click <b>Continue</b>', (s) => Boolean(leakedId(s))),
+      usernameFirstPasskeyLoginTask('attacker', victimName, 'Click <b>Login</b>, type <code>{victim}</code>, <b>Continue</b>', (s) => Boolean(leakedId(s))),
       copyCredentialIdTask,
     ],
     complete: idFound,
@@ -260,15 +267,12 @@ const steps = [
     focus: 'attacker',
     quietLoginFailures: true,
     kicker: 'Step 2 · Attacker',
-    title: 'Give the attacker’s own key the victim’s credential ID',
-    lead: 'Still in the interceptor tab, the attacker edits PASSKEYS-ATTACKER’s key store, then cancels the login.',
-    why: {
-      title: 'A key with a borrowed name',
-      body: 'The key pair stays the attacker’s own — only its credential ID now equals the victim’s. When the attacker registers a passkey with it, the website receives the <b>victim’s credential ID</b> together with the <b>attacker’s public key</b>.',
-    },
+    title: 'Put the ID on the attacker’s key',
+    lead: 'In PASSKEYS-ATTACKER’s key store, then cancel the login.',
+    why: { title: 'A borrowed name', body: 'The key pair stays the attacker’s — only its credential ID now matches the victim’s.' },
     tasks: [openKeysTabTask, pasteCredentialIdTask, chooseOwnKeyTask, updateKeyTask, dismissLoginTask],
     complete: reconFinished,
-    doneMessage: `🔑 ${ATTACKER_KEY} now carries the victim’s credential ID`,
+    doneMessage: `🔑 ${ATTACKER_KEY} now carries the victim’s ID`,
   },
   {
     id: 'attacker-login',
@@ -276,12 +280,9 @@ const steps = [
     marker: '3',
     focus: 'attacker',
     kicker: 'Step 3 · Attacker',
-    title: 'Log in to the attacker’s own account',
-    lead: 'An ordinary account on the same website is all the attacker needs.',
-    why: {
-      title: 'Nothing special',
-      body: 'The attacker’s account has no passkey, so the username-first login falls back to the password. Next, the attacker adds a “passkey” to this account.',
-    },
+    title: 'Log in to the attacker’s account',
+    lead: 'An ordinary account without a passkey, so the website asks for the password.',
+    why: { title: 'Nothing special', body: 'Any account on the website works.' },
     tasks: passwordFallbackLoginTasks('attacker', ATTACKER_NAME, attackerLoggedIn),
     complete: attackerLoggedIn,
     doneMessage: '✓ Logged in as “{attacker}”',
@@ -293,16 +294,16 @@ const steps = [
     focus: 'attacker',
     kicker: 'Step 4 · Attacker',
     title: 'Overwrite the victim’s passkey',
-    lead: 'The attacker registers a passkey on their own account with the key that carries the victim’s credential ID.',
+    lead: 'Register a passkey with the key carrying the victim’s ID.',
     why: {
       title: 'The bug',
-      body: 'A secure website must reject a credential ID that is already registered (WebAuthn §7.1.26). This one instead <b>overwrites the public key</b> of the victim’s passkey with the attacker’s key. On the victim’s side nothing looks different — same passkey, same name.',
+      body: 'The website should reject a known credential ID (WebAuthn §7.1.26). Instead, it <b>replaces the victim’s public key</b>. The victim sees no change.',
     },
     tasks: [
       openSettingsTask('attacker', keyOverwritten),
       ...addPasskeyTasks('attacker', keyOverwritten),
       keepSelectionTask('attacker', 'create', (s) => ({ credentialId: forgedKey(s), key: ATTACKER_KEY }),
-        `Keep <b>Credential ID</b> and <b>Key</b> = <code>${ATTACKER_KEY}</code> — the Response’s <code>id</code> is now the victim’s credential ID`, keyOverwritten),
+        `Keep <code>${ATTACKER_KEY}</code> (now with the victim’s ID)`, keyOverwritten),
       sendTask('attacker', 'create', keyOverwritten),
     ],
     complete: keyOverwritten,
@@ -315,17 +316,17 @@ const steps = [
     focus: 'attacker',
     kicker: 'Step 5 · Attacker',
     title: 'Log in as the victim',
-    lead: 'The attacker starts a login as the victim again. This time the attacker’s key matches what the website has stored.',
+    lead: 'Victim’s credential ID, signed with the attacker’s key.',
     why: {
-      title: 'Why the login works',
-      body: 'The website asks for the victim’s credential ID and checks the signature against the public key stored for it — which is now the attacker’s. The signature is valid, so the attacker is logged in <b>as the victim</b>.',
+      title: 'Why it works',
+      body: 'The website checks the signature with the stored key — now the attacker’s. Valid, so the attacker is in <b>as the victim</b>.',
     },
     tasks: [
-      logoutTask('attacker', 'Close the flag pop-up and log out: <b>{attacker}</b> → <b>Logout</b>', attackerIsVictim),
-      usernameFirstPasskeyLoginTask('attacker', victimName, 'Click <b>Login</b>, type <code>{victim}</code>, click <b>Continue</b>', attackerIsVictim),
+      logoutTask('attacker', 'Close the pop-up, then <b>{attacker}</b> → <b>Logout</b>', attackerIsVictim),
+      usernameFirstPasskeyLoginTask('attacker', victimName, 'Click <b>Login</b>, type <code>{victim}</code>, <b>Continue</b>', attackerIsVictim),
       keepSelectionTask('attacker', 'get', (s) => ({ credentialId: forgedKey(s), key: ATTACKER_KEY }),
-        `The interceptor picks the key carrying the victim’s credential ID: keep <code>${ATTACKER_KEY}</code>`, attackerIsVictim),
-      removeUserHandleTask('attacker', 'Delete the <code>userHandle</code> line in the Response (<b>Delete</b>): it names the attacker’s own account', attackerIsVictim),
+        `Keep <code>${ATTACKER_KEY}</code>`, attackerIsVictim),
+      removeUserHandleTask('attacker', 'Delete the <code>userHandle</code> line (<b>Delete</b>) — it’s the attacker’s', attackerIsVictim),
       sendTask('attacker', 'get', attackerIsVictim),
     ],
     complete: attackerIsVictim,
@@ -338,20 +339,16 @@ const steps = [
     focus: 'victim',
     kicker: 'Step 6 · Victim',
     title: 'The victim is locked out',
-    lead: 'The victim logs out — and tries to log in again with their own, genuine passkey.',
-    why: {
-      title: 'Locked out',
-      body: 'The website now checks the victim’s signature against the attacker’s public key. It does not match, so the victim can no longer log in to their own account.',
-    },
+    lead: 'The victim logs out and tries their genuine passkey.',
+    why: { title: 'Locked out', body: 'The stored key is now the attacker’s, so the victim’s signature fails.' },
     tasks: [
       logoutTask('victim', 'Log out: <b>{victim}</b> → <b>Logout</b>', victimLockedOut),
-      usernameFirstPasskeyLoginTask('victim', victimName, 'Click <b>Login</b>, type <code>{victim}</code>, click <b>Continue</b>', victimLockedOut),
-      keepSelectionTask('victim', 'get', { credentialId: VICTIM_KEY, key: VICTIM_KEY },
-        `The victim’s authenticator signs with the victim’s genuine key: keep <code>${VICTIM_KEY}</code>`, victimLockedOut),
+      usernameFirstPasskeyLoginTask('victim', victimName, 'Click <b>Login</b>, type <code>{victim}</code>, <b>Continue</b>', victimLockedOut),
+      keepSelectionTask('victim', 'get', { credentialId: VICTIM_KEY, key: VICTIM_KEY }, `Keep <code>${VICTIM_KEY}</code> (genuine key)`, victimLockedOut),
       sendTask('victim', 'get', victimLockedOut),
     ],
     complete: victimLockedOut,
-    doneMessage: '🔒 “{victim}” is locked out of their own account',
+    doneMessage: '🔒 “{victim}” is locked out',
   },
   {
     id: 'summary',
@@ -361,14 +358,14 @@ const steps = [
     kicker: 'Takeaways',
     title: 'A username in, an account out',
     points: [
-      '<b>Leak:</b> a username-first login hands the victim’s credential IDs to anyone (<code>allowCredentials</code>). That is allowed — credential IDs are not secrets.',
-      '<b>Bug:</b> the website accepted a registration with a credential ID that already belonged to the victim — and replaced the victim’s public key.',
-      '<b>Fix:</b> reject every registration whose credential ID is already registered, for <em>any</em> user (WebAuthn §7.1.26).',
-      '<b>In the wild:</b> of 103 passkey websites we tested, 12 accepted the victim’s credential ID in another account; on 5, the victim’s key was overwritten (CVSS 9.1, critical).',
+      '<b>Leak:</b> login pages hand out credential IDs — allowed, they aren’t secret.',
+      '<b>Bug:</b> a known credential ID was accepted again, and its key replaced.',
+      '<b>Fix:</b> reject known credential IDs, for any user (WebAuthn §7.1.26).',
+      '<b>In the wild:</b> 12 of 103 sites accepted it; on 5, keys were overwritten (CVSS 9.1).',
     ],
     why: {
       title: 'Try it yourself',
-      body: '<b>passkeys.tools</b> — PASSKEYS-ATTACKER, our open-source passkey testing tool<br><b>learning.passkeys.tools</b> — the CTF with 38 vulnerable verifiers<br><b>Paper:</b> “The State of Passkeys”, USENIX Security 2026',
+      body: '<b>passkeys.tools</b> — PASSKEYS-ATTACKER<br><b>learning.passkeys.tools</b> — the CTF<br><b>Paper:</b> The State of Passkeys, USENIX Security ’26',
     },
     tasks: [],
     complete: () => true,

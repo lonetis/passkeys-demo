@@ -67,7 +67,7 @@ function render() {
   renderOnce('status', [state.phase, state.browsers], renderBrowserStatus);
   renderOnce('setup', [state.phase, state.setup], renderSetup);
   renderOnce('step', [state.phase, state.stepIndex, step, state.notice, state.autopilotRunning], () => renderStep(step));
-  renderOnce('why', [step.why, step.callout], () => renderWhy(step));
+  renderOnce('why', [step.why, step.diagram, step.callout], () => renderWhy(step));
   renderOnce('db', [state.passkeys, state.lastLogin, state.names, state.leakedCredentialId], renderDatabase);
   renderCelebration();
 }
@@ -159,8 +159,59 @@ function renderStep(step) {
   else scroller.scrollTop = 0;
 }
 
+const DIAGRAM = Object.freeze({
+  width: 520,
+  lanes: { victim: 70, website: 260, attacker: 450 },
+  laneTitles: { victim: '😇 Victim', website: '🌐 Website', attacker: '😈 Attacker' },
+  top: 54,
+  row: 32,
+});
+
+/** A small sequence diagram: lanes for victim, website and attacker, one arrow per message. */
+function renderDiagram(diagram) {
+  const { width, lanes, laneTitles, top, row } = DIAGRAM;
+  const height = top + diagram.messages.length * row - 4;
+  const tones = ['victim', 'website', 'attacker', 'bad', 'leak'];
+  const markers = tones.map((tone) => `
+    <marker id="dg-arrow-${tone}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="dg-fill-${tone}"/>
+    </marker>`).join('');
+  const heads = Object.entries(lanes).map(([lane, x]) => `
+    <rect x="${x - 58}" y="4" width="116" height="26" rx="13" class="dg-head dg-head-${lane}"/>
+    <text x="${x}" y="21.5" text-anchor="middle" class="dg-head-text">${esc(laneTitles[lane])}</text>
+    <line x1="${x}" y1="34" x2="${x}" y2="${height}" class="dg-lifeline"/>`).join('');
+  const messages = diagram.messages.map((message, index) => {
+    const y = top + index * row;
+    const tone = message.kind ?? message.from;
+    if (message.from === message.to) {
+      const x = lanes[message.from];
+      return `
+        <rect x="${x - 92}" y="${y - 16}" width="184" height="22" rx="6" class="dg-note dg-note-${tone}"/>
+        <text x="${x}" y="${y - 1}" text-anchor="middle" class="dg-label dg-fill-${tone}">${esc(message.text)}</text>`;
+    }
+    const x1 = lanes[message.from];
+    const x2 = lanes[message.to];
+    const end = x2 + (x2 > x1 ? -4 : 4);
+    return `
+      <line x1="${x1}" y1="${y}" x2="${end}" y2="${y}" class="dg-arrow dg-stroke-${tone}" marker-end="url(#dg-arrow-${tone})"/>
+      <text x="${(x1 + x2) / 2}" y="${y - 6}" text-anchor="middle" class="dg-label dg-fill-${tone}">${esc(message.text)}</text>`;
+  }).join('');
+  return `<svg class="diagram" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(diagram.title)}">
+    <defs>${markers}</defs>${heads}${messages}</svg>`;
+}
+
 function renderWhy(step) {
   const card = $('#why-card');
+  if (step.diagram) {
+    card.innerHTML = `
+      <header class="card-head">
+        <span class="card-icon" aria-hidden="true">🗺️</span>
+        <h2>${esc(step.diagram.title)}</h2>
+      </header>
+      ${renderDiagram(step.diagram)}
+      ${step.callout ? `<div class="callout">${step.callout}</div>` : ''}`;
+    return;
+  }
   if (!step.why) {
     card.innerHTML = '';
     return;

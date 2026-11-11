@@ -106,7 +106,7 @@ export function signUpTasks(role, suggestedName) {
     },
     {
       id: 'fill-form',
-      text: `Enter username <code>${suggestedName}</code> and a password (twice)`,
+      text: `Username <code>${suggestedName}</code>, any password (twice)`,
       done: (s) => formFilled(s) || loggedIn(s),
       highlight: (s) => {
         const f = form(s);
@@ -138,7 +138,7 @@ export function signUpTasks(role, suggestedName) {
 export function openSettingsTask(role, finished) {
   return {
     id: 'open-settings',
-    text: `Open <b>Settings</b>: click <b>{${role}}</b> (top right) → <b>Settings</b>`,
+    text: `Open <b>{${role}}</b> → <b>Settings</b>`,
     done: (s) => learning(s, role)?.path === '/settings' || interceptorOpen(s, role, 'create') || finished(s),
     highlight: (s) => ({
       page: 'learning',
@@ -167,7 +167,7 @@ export function addPasskeyTasks(role, finished) {
     },
     {
       id: 'register-passkey',
-      text: 'Click <b>Register Passkey</b> → PASSKEYS-ATTACKER opens its interceptor in a new tab',
+      text: 'Click <b>Register Passkey</b> — the interceptor opens',
       done: (s) => interceptorOpen(s, role, 'create') || finished(s),
       highlight: () => ({ page: 'learning', targets: [{ id: 'register-passkey', selectors: [SELECTORS.confirmAddPasskey], label: 'Click “Register Passkey”' }] }),
       run: async ({ browser }) => {
@@ -202,7 +202,7 @@ export function selectTask(role, op, field, expected, text, finished) {
 export function sendTask(role, op, finished) {
   return {
     id: 'send',
-    text: 'Click <b>Send</b> to answer the website',
+    text: 'Click <b>Send</b>',
     done: finished,
     highlight: (s) => (interceptorOpen(s, role, op) ? {
       page: 'interceptor',
@@ -347,7 +347,7 @@ export function passwordFallbackLoginTasks(role, username, finished) {
   return [
     {
       id: 'username',
-      text: `Type the attacker’s username <code>${username}</code> and click <b>Continue</b>`,
+      text: `Username <code>${username}</code> → <b>Continue</b>`,
       done: (s) => Boolean(learning(s, role)?.usernameFirst?.passwordVisible) || loggedIn(s),
       highlight: (s) => usernameFirstHighlight(s, role, username),
       run: async ({ browser }) => {
@@ -358,7 +358,7 @@ export function passwordFallbackLoginTasks(role, username, finished) {
     },
     {
       id: 'password',
-      text: `No passkey on this account, so the website asks for the password: <code>${CTF_PASSWORD}</code> → <b>Login</b>`,
+      text: `Password <code>${CTF_PASSWORD}</code> → <b>Login</b>`,
       done: loggedIn,
       highlight: (s) => (learning(s, role)?.usernameFirst?.password
         ? { page: 'learning', targets: [{ id: 'password-login', selectors: [SELECTORS.passwordFallbackSubmit], label: 'Click “Login”' }] }

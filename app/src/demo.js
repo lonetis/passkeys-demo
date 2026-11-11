@@ -387,6 +387,7 @@ export class DemoController extends EventEmitter {
         lead: step.lead ? this.render(step.lead) : null,
         points: (step.points ?? []).map((point) => this.render(point)),
         why: step.why ? { title: step.why.title, body: this.render(step.why.body) } : null,
+        diagram: step.diagram ?? null,
         callout: step.callout ? this.render(step.callout) : null,
         doneMessage: step.doneMessage ? this.render(step.doneMessage) : null,
         complete,

@@ -540,6 +540,35 @@ a.brand-mark:hover { border-color: var(--accent); }
 .tag.victim { background: var(--victim); color: var(--victim-ink); }
 .tag.attacker { background: var(--attacker); color: var(--attacker-ink); }
 
+/* Attack diagram (intro) */
+.diagram { display: block; width: 100%; height: auto; max-height: calc(100% - 46px); overflow: visible; }
+.dg-head { fill: var(--panel-raised); stroke: var(--line); }
+.dg-head-victim { stroke: var(--victim); }
+.dg-head-attacker { stroke: var(--attacker); }
+.dg-head-website { stroke: var(--accent); }
+.dg-head-text { fill: var(--text); font-size: 12.5px; font-weight: 700; }
+.dg-lifeline { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.dg-arrow { stroke-width: 2; }
+.dg-label {
+  font-size: 12.5px;
+  font-weight: 650;
+  paint-order: stroke;
+  stroke: var(--panel);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.dg-note { fill: rgba(239, 68, 68, 0.14); stroke: var(--attacker); }
+.dg-stroke-victim { stroke: var(--victim); }
+.dg-stroke-attacker { stroke: var(--attacker); }
+.dg-stroke-website { stroke: var(--accent); }
+.dg-stroke-bad { stroke: var(--danger); }
+.dg-stroke-leak { stroke: var(--warn); }
+.dg-fill-victim { fill: var(--victim); }
+.dg-fill-attacker { fill: #fca5a5; }
+.dg-fill-website { fill: var(--accent); }
+.dg-fill-bad { fill: var(--danger); }
+.dg-fill-leak { fill: var(--warn); }
+
 /* Database card */
 .db-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
 .db-table th {
