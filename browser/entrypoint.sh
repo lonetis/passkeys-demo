@@ -69,6 +69,9 @@ run_chromium_forever() {
 
 write_policies
 
+# A restarted container keeps its filesystem; stale X locks would make Xvnc refuse to start.
+rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
+
 Xvnc "$DISPLAY" \
     -geometry "${SCREEN_WIDTH}x${SCREEN_HEIGHT}" \
     -depth 24 \
