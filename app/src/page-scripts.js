@@ -286,3 +286,77 @@ export function applyHighlights(targets) {
     if (!usedTips.has(key)) tip.remove();
   });
 }
+
+/**
+ * Init script (demo-only patch of the passkeys.tools UI): shows PASSKEYS-ATTACKER's profile
+ * names as roles, e.g. "profile2 | ES256" → "attacker | ES256", so the audience sees whose
+ * key is whose. Only displayed text changes; stored names and option values stay intact.
+ *
+ * labels: { profile1: 'victim', profile2: 'attacker' }
+ * hidden: profiles whose keys this browser should not list (when key stores are separate,
+ *         the other profile's keys exist locally but do not belong to anyone in the story).
+ */
+export function relabelPasskeysTools({ origin, labels, hidden }) {
+  if (location.origin !== origin || window.top !== window) return;
+  const names = Object.keys(labels);
+  const pattern = new RegExp(`\\b(${names.join('|')})\\b`, 'g');
+  const keyName = new RegExp(`^\\s*(${names.join('|')}) \\|`);
+  // Elements whose text the app reads back (the interceptor stores the mode in its history):
+  // relabel them with CSS only.
+  const readByApp = new Set(['interceptorControlsMode']);
+
+  const style = document.createElement('style');
+  style.textContent = `
+    [data-pkdemo-label] { font-size: 0 !important; }
+    [data-pkdemo-label]::after { content: attr(data-pkdemo-label); font-size: var(--pkdemo-font-size, 1rem); }
+  `;
+
+  const selectFirstVisible = (select) => {
+    if (select.size > 1 || !select.selectedOptions[0]?.hidden) return;
+    const visible = [...select.options].findIndex((option) => !option.hidden);
+    if (visible >= 0) select.selectedIndex = visible;
+  };
+
+  const handleText = (node) => {
+    const original = node.nodeValue ?? '';
+    pattern.lastIndex = 0;
+    if (!pattern.test(original)) return;
+    const parent = node.parentElement;
+    if (!parent || parent.closest('script, style, textarea')) return;
+
+    const owner = keyName.exec(original)?.[1];
+    if (owner && hidden.includes(owner)) {
+      const row = parent.closest('option, tr');
+      if (row) {
+        row.hidden = true;
+        if (row.tagName === 'OPTION' && row.parentElement?.tagName === 'SELECT') selectFirstVisible(row.parentElement);
+      }
+    }
+
+    const relabeled = original.replace(pattern, (name) => labels[name]);
+    if (readByApp.has(parent.id)) {
+      if (!style.isConnected) document.head?.appendChild(style);
+      parent.style.setProperty('--pkdemo-font-size', getComputedStyle(parent).fontSize);
+      parent.dataset.pkdemoLabel = relabeled;
+      return;
+    }
+    node.nodeValue = relabeled;
+  };
+
+  const scan = (root) => {
+    if (root.nodeType === Node.TEXT_NODE) {
+      handleText(root);
+      return;
+    }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) handleText(node);
+  };
+
+  new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === 'characterData') handleText(record.target);
+      record.addedNodes.forEach(scan);
+    }
+  }).observe(document, { childList: true, subtree: true, characterData: true });
+  document.addEventListener('DOMContentLoaded', () => scan(document.documentElement));
+}

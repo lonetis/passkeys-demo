@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { generateSecret, listKeyNames } from '../passkeys-tools-store.js';
 import {
-  restartBrowsers, configureExtension, connectRemoteKeyStore, openCtfInstance,
+  PROFILE_BY_ROLE, restartBrowsers, configureExtension, connectRemoteKeyStore, openCtfInstance,
 } from '../setup.js';
 import {
   VICTIM_KEY, ATTACKER_KEY, usernameOf,
@@ -14,12 +14,12 @@ import {
  * passkey; the attacker signs up and registers a passkey with the victim's credential ID,
  * which the CTF's "Cred Overwrite" verifier turns into an overwrite of the victim's key.
  * Both browsers share one passkeys.tools key store, so the victim's credential ID is listed
- * in the attacker's interceptor as "profile1 | ES256".
+ * in the attacker's interceptor as "victim | ES256".
  */
 
 const SETUP_STAGES = [
   { id: 'browsers', label: 'Restart both browsers with fresh, empty profiles' },
-  { id: 'extension', label: 'Install PASSKEYS-ATTACKER: victim → profile1, attacker → profile2' },
+  { id: 'extension', label: 'Install PASSKEYS-ATTACKER in both browsers, with keys labeled “victim” and “attacker”' },
   { id: 'storage', label: 'Connect both to one shared, end-to-end encrypted passkeys.tools key store' },
   { id: 'ctf', label: 'Open a fresh CTF instance shared by both browsers, with the vulnerable registration' },
 ];
@@ -39,7 +39,7 @@ async function prepare({ browsers: { victim, attacker }, config, onStage }) {
   await connectRemoteKeyStore(victim, config, secret);
   await connectRemoteKeyStore(attacker, config, secret);
   const keyNames = await listKeyNames(config.passkeysToolsDbUrl, secret);
-  for (const required of [VICTIM_KEY, ATTACKER_KEY]) {
+  for (const required of Object.values(PROFILE_BY_ROLE).map((profile) => `${profile} | ES256`)) {
     if (!keyNames.includes(required)) throw new Error(`passkeys.tools key store is missing "${required}"`);
   }
 
@@ -143,7 +143,7 @@ const steps = [
       title: 'The bug',
       body: 'A secure website must reject a credential ID that is already registered (WebAuthn §7.1.26). This one instead <b>overwrites the public key</b> of the victim’s passkey with the attacker’s key. The passkey still belongs to the victim’s account, but now the attacker holds the matching private key.',
     },
-    callout: '<b>How does the attacker know the victim’s credential ID?</b> It is not a secret: many websites reveal it to anyone who enters the victim’s username at login (<code>allowCredentials</code>). Here, both browsers share one passkeys.tools key store, so it is listed as <code>profile1 | ES256</code>.',
+    callout: `<b>How does the attacker know the victim’s credential ID?</b> It is not a secret: many websites reveal it to anyone who enters the victim’s username at login (<code>allowCredentials</code>). Here, both browsers share one passkeys.tools key store, so it is listed as <code>${VICTIM_KEY}</code>.`,
     tasks: [
       openSettingsTask('attacker', keyOverwritten),
       ...addPasskeyTasks('attacker', keyOverwritten),
@@ -231,6 +231,6 @@ export default {
   prepare,
   steps,
   notices: {
-    overwriteMissed: 'That created a brand-new passkey for the attacker — its credential ID was not the victim’s. Try again: <b>+ Add Passkey</b>, then pick <code>profile1 | ES256</code> as Credential ID.',
+    overwriteMissed: `That created a brand-new passkey for the attacker — its credential ID was not the victim’s. Try again: <b>+ Add Passkey</b>, then pick <code>${VICTIM_KEY}</code> as Credential ID.`,
   },
 };

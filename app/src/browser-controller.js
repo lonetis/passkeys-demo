@@ -2,7 +2,9 @@ import { EventEmitter } from 'node:events';
 import { lookup } from 'node:dns/promises';
 import { chromium } from 'playwright-core';
 import { createLogger } from './log.js';
-import { snapshotLearningPage, snapshotInterceptorPage, applyHighlights, reportUserActions } from './page-scripts.js';
+import {
+  snapshotLearningPage, snapshotInterceptorPage, applyHighlights, reportUserActions, relabelPasskeysTools,
+} from './page-scripts.js';
 
 const CONNECT_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 300;
@@ -21,9 +23,14 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  *  - "disconnected" when the CDP connection drops unexpectedly.
  */
 export class BrowserController extends EventEmitter {
-  constructor(role, { host, cdpPort }, { learningUrl, passkeysToolsUrl }) {
+  /**
+   * toolView: { labels, hidden } for relabelPasskeysTools (profile names shown as roles, and
+   * profiles whose keys are hidden in this browser).
+   */
+  constructor(role, { host, cdpPort }, { learningUrl, passkeysToolsUrl, toolView }) {
     super();
     this.role = role;
+    this.toolView = toolView;
     this.host = host;
     this.cdpPort = cdpPort;
     this.learningUrl = learningUrl;
@@ -80,6 +87,7 @@ export class BrowserController extends EventEmitter {
       this.emit('report', payload);
     });
     await this.context.addInitScript(reportUserActions);
+    await this.context.addInitScript(relabelPasskeysTools, { origin: this.passkeysToolsUrl, ...this.toolView });
     this.context.on('page', (page) => this.watchPage(page));
     this.context.pages().forEach((page) => this.watchPage(page));
     this.log.info('connected');

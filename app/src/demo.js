@@ -8,6 +8,7 @@ const AUTOPILOT_PAUSE_MS = 900;
 const AUTOPILOT_TASK_TIMEOUT_MS = 25_000;
 const ROLES = ['victim', 'attacker'];
 const OWNER_BY_PROFILE = Object.freeze(Object.fromEntries(Object.entries(PROFILE_BY_ROLE).map(([role, profile]) => [profile, role])));
+const ownerOf = (prefix) => (ROLES.includes(prefix) ? prefix : OWNER_BY_PROFILE[prefix] ?? null);
 
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const shortId = (id) => (id && id.length > 18 ? `${id.slice(0, 10)}…${id.slice(-4)}` : id ?? '');
@@ -31,9 +32,9 @@ function emptyFacts(presetNames) {
   };
 }
 
-/** Owner of a PASSKEYS-ATTACKER key name such as "profile2 | ES256". */
+/** Owner of a key name as shown ("attacker | ES256") or stored ("profile2 | ES256"). */
 function keyOwner(keyName) {
-  return OWNER_BY_PROFILE[String(keyName ?? '').split(' | ')[0]] ?? null;
+  return ownerOf(String(keyName ?? '').split(' | ')[0]);
 }
 
 /**

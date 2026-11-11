@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   restartBrowsers, configureExtension, initLocalKeyStore, openCtfInstance,
-  createCtfAccount, registerDefaultPasskey, logOutOfCtf,
+  createCtfAccount, registerDefaultPasskey, logOutOfCtf, shownKeyName,
 } from '../setup.js';
 import {
   VICTIM_KEY, ATTACKER_KEY, CTF_PASSWORD, SELECTORS, sleep,
@@ -26,7 +26,7 @@ const ATTACKER_NAME = 'attacker';
 
 const SETUP_STAGES = [
   { id: 'browsers', label: 'Restart both browsers with fresh, empty profiles' },
-  { id: 'extension', label: 'Install PASSKEYS-ATTACKER with separate local key stores: victim → profile1, attacker → profile2' },
+  { id: 'extension', label: 'Install PASSKEYS-ATTACKER in both browsers, each with its own local key store' },
   { id: 'ctf', label: 'Open a fresh CTF instance with a username-first login and the vulnerable registration' },
   { id: 'accounts', label: 'Victim: account with a passkey, signed in · Attacker: own account, logged out' },
 ];
@@ -71,7 +71,7 @@ async function prepare({ browsers: { victim, attacker }, config, onStage }) {
 
 const recon = (s) => s.facts.scenario;
 const leakedId = (s) => recon(s).leakedCredentialId ?? null;
-/** The attacker's key that carries the victim's credential ID (normally profile2 | ES256). */
+/** The attacker's key that carries the victim's credential ID (normally "attacker | ES256"). */
 const forgedKey = (s) => recon(s).forgedKey ?? ATTACKER_KEY;
 const victimName = (s) => usernameOf(s, 'victim');
 
@@ -89,7 +89,7 @@ function observe(s) {
   if (!r.forgedKey && view?.keyCredentialIds) {
     const leakedHex = Buffer.from(r.leakedCredentialId, 'base64url').toString('hex');
     const match = Object.entries(view.keyCredentialIds).find(([, credentialId]) => credentialId === leakedHex);
-    if (match) [r.forgedKey] = match;
+    if (match) r.forgedKey = shownKeyName(match[0]);
   }
   if (r.forgedKey && !r.reconClosed && !interceptorOpen(s, 'attacker', 'get')) r.reconClosed = true;
   if (r.reconClosed && !r.attackerLoggedIn && learning(s, 'attacker')?.user === usernameOf(s, 'attacker')) r.attackerLoggedIn = true;
@@ -162,7 +162,7 @@ const pasteCredentialIdTask = {
 
 const chooseOwnKeyTask = {
   id: 'choose-own-key',
-  text: `Choose the attacker’s own key <code>${ATTACKER_KEY}</code>`,
+  text: `Make sure the attacker’s own key <code>${ATTACKER_KEY}</code> is selected`,
   done: (s) => interceptor(s, 'attacker')?.keysForm.key === ATTACKER_KEY || keyForged(s),
   highlight: (s) => (interceptor(s, 'attacker')?.tab === '/keys' ? {
     page: 'interceptor',
@@ -380,6 +380,7 @@ export default {
   title: 'Attacker’s view',
   summary: 'The victim is already signed in with a passkey. The attacker learns the victim’s credential ID from the login page, overwrites the victim’s passkey, takes over the account, and the victim is locked out.',
   presetNames: { victim: VICTIM_NAME, attacker: ATTACKER_NAME },
+  separateKeyStores: true,
   setupStages: SETUP_STAGES,
   prepare,
   observe,

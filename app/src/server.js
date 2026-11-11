@@ -10,6 +10,7 @@ import { bridgeVnc } from './vnc-proxy.js';
 import { BrowserController } from './browser-controller.js';
 import { DemoController } from './demo.js';
 import { scenarios } from './scenarios/index.js';
+import { PROFILE_BY_ROLE, LABEL_BY_PROFILE } from './setup.js';
 
 const ROLES = ['victim', 'attacker'];
 
@@ -27,12 +28,28 @@ for (const id of config.demos) {
 }
 
 const catalog = config.demos.map((id) => ({ id, title: scenarios.get(id).title }));
+/**
+ * passkeys.tools shows profile names as roles. With separate key stores, each browser also has
+ * keys for the other profile that belong to no one in the story, so they are hidden there.
+ */
+function toolViewFor(scenario, role) {
+  const hidden = scenario.separateKeyStores
+    ? Object.entries(PROFILE_BY_ROLE).filter(([other]) => other !== role).map(([, profile]) => profile)
+    : [];
+  return { labels: LABEL_BY_PROFILE, hidden };
+}
+
 const demos = new Map(config.demos.map((id) => {
+  const scenario = scenarios.get(id);
   const browsers = Object.fromEntries(ROLES.map((role) => [
     role,
-    new BrowserController(role, config.browserTarget(id, role), { learningUrl: config.learningUrl, passkeysToolsUrl: config.passkeysToolsUrl }),
+    new BrowserController(role, config.browserTarget(id, role), {
+      learningUrl: config.learningUrl,
+      passkeysToolsUrl: config.passkeysToolsUrl,
+      toolView: toolViewFor(scenario, role),
+    }),
   ]));
-  return [id, new DemoController(scenarios.get(id), browsers, config, catalog)];
+  return [id, new DemoController(scenario, browsers, config, catalog)];
 }));
 
 const app = express();

@@ -8,7 +8,8 @@ Live, guided demos of a passkey attack from our paper *The State of Passkeys* (U
   - **Full story**: both people start from scratch. The victim signs up and registers a passkey, then the attacker signs up and overwrites it.
   - **Attacker's view**: the victim is already signed in with a passkey. Knowing only the username, the attacker learns the victim's credential ID from the login page (`allowCredentials`), puts it on their own key, and takes over the account.
 - Real, interactive Chromium browsers streamed into the page (noVNC), each with its own skin color
-- One-click setup and reset per version: fresh browser profiles, the PASSKEYS-ATTACKER extension installed and configured (`profile1` / `profile2`), key stores, and a fresh CTF instance with the vulnerable verifier preselected
+- PASSKEYS-ATTACKER's profile keys are labeled by role in the demo browsers (`victim | ES256`, `attacker | ES256`) instead of `profile1`/`profile2`
+- One-click setup and reset per version: fresh browser profiles, the PASSKEYS-ATTACKER extension installed and configured, key stores, and a fresh CTF instance with the vulnerable verifier preselected
 - Step-by-step guide that follows what happens in the browsers live and checks off each action
 - "Click here" highlights inside the real browsers, including which option to pick and which text to copy or delete
 - "Do it for me" button per step that performs the actions visibly in the browsers

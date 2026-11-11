@@ -12,8 +12,9 @@
  * after a detour (e.g. the interceptor tab was closed, or a wrong option was sent).
  */
 
-export const VICTIM_KEY = 'profile1 | ES256';
-export const ATTACKER_KEY = 'profile2 | ES256';
+/** Key names as shown in the demo browsers' passkeys.tools UI (see relabelPasskeysTools). */
+export const VICTIM_KEY = 'victim | ES256';
+export const ATTACKER_KEY = 'attacker | ES256';
 /** Password of every account the demo creates in the CTF (public, throwaway instances). */
 export const CTF_PASSWORD = 'passkeys';
 

@@ -8,6 +8,14 @@ import { createHash } from 'node:crypto';
 /** PASSKEYS-ATTACKER operation mode per browser (see the artifact appendix, §A.3.1). */
 export const PROFILE_BY_ROLE = Object.freeze({ victim: 'profile1', attacker: 'profile2' });
 
+/** How the demo browsers show each profile name in the passkeys.tools UI (see relabelPasskeysTools). */
+export const LABEL_BY_PROFILE = Object.freeze(Object.fromEntries(Object.entries(PROFILE_BY_ROLE).map(([role, profile]) => [profile, role])));
+
+/** "profile2 | ES256" (as stored by passkeys.tools) → "attacker | ES256" (as shown in the demo). */
+export function shownKeyName(storedName) {
+  return String(storedName).replace(/^(profile\d+)\b/, (profile) => LABEL_BY_PROFILE[profile] ?? profile);
+}
+
 /** Chromium derives the ID of an unpacked extension from its absolute path. */
 function unpackedExtensionId(path) {
   return createHash('sha256').update(path).digest('hex').slice(0, 32)
