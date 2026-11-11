@@ -95,10 +95,14 @@ export async function createCtfAccount(browser, config, username, password) {
   await page.waitForSelector('ul.navbar-nav.align-items-center .dropdown-toggle');
 }
 
-/** Registers a passkey with the interceptor's defaults and stays on the passkey management page. */
+/**
+ * Registers a passkey with the interceptor's defaults and ends on the passkey management
+ * page, scrolled to the top so the navbar shows who is logged in.
+ */
 export async function registerDefaultPasskey(browser, config) {
   const page = await singlePage(browser);
-  await page.goto(`${config.learningUrl}/settings`);
+  const settingsUrl = `${config.learningUrl}/settings`;
+  await page.goto(settingsUrl);
   await page.click('#add-passkey-btn');
   await page.waitForSelector('#confirm-add-passkey:visible');
   await page.click('#confirm-add-passkey');
@@ -106,6 +110,9 @@ export async function registerDefaultPasskey(browser, config) {
   await interceptor.click('#interceptorSendButton');
   await page.bringToFront();
   await page.waitForSelector('.delete-passkey-btn', { timeout: 20_000 });
+  // A fresh navigation (unlike a reload) does not restore the scrolled-down position.
+  await page.goto(settingsUrl);
+  await page.evaluate(() => window.scrollTo(0, 0));
 }
 
 export async function logOutOfCtf(browser, config) {
