@@ -97,7 +97,7 @@ Setup details worth knowing:
   - `report`: an init script reports user actions via `exposeBinding`, namely the interceptor selection at the exact moment Send is clicked (`send`) and copied text (`copy`).
 - **Highlights** (`applyHighlights`) outline an element and show a tip. On listbox selects they mark an option. In textareas they select text (`select.text` / `select.pattern`) and re-apply it whenever focus or selection was lost, so one keypress (Ctrl+C, Delete) acts on it. Tips for elements taller than the viewport are pinned to the visible part.
 - The **database view** is a model built from the facts. A registration with a known credential ID that carries a reward means the stored key was overwritten.
-- **Autopilot** runs the remaining tasks' `run()` functions with Playwright in the real browsers, waiting for each task's predicate before the next one; per-task durations are logged. The live highlights make each action visible.
+- **Autopilot** runs the remaining tasks' `run()` functions with Playwright in the real browsers, waiting for each task's predicate before the next one; per-task durations are logged. It is paced for an audience: before each task it pauses (`AUTOPILOT_PAUSE_MS`) while the highlight shows where the action happens, and inside tasks it uses `BEAT_MS`, `TYPING_DELAY_MS` and `SHOW_SELECTION_MS` from `common.js`.
 - Texts are HTML authored in the scenario files; `{victim}`, `{attacker}`, `{flag}` and `{leaked}` are replaced server-side, with user-typed names escaped.
 
 ### UI (`public/`)

@@ -58,6 +58,15 @@ export const FIELD_LABELS = Object.freeze({ userHandle: 'User Handle', credentia
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Autopilot pacing inside a task (the pause before each task is AUTOPILOT_PAUSE_MS):
+ * between two actions of one task, and per typed character.
+ */
+export const BEAT_MS = 1000;
+export const TYPING_DELAY_MS = 120;
+/** Time for a text selection made by the highlight to be seen before acting on it. */
+export const SHOW_SELECTION_MS = 1500;
+
 // ─── State helpers ──────────────────────────────────────────────────────────
 
 export const learning = (s, role) => s[role]?.learning ?? null;
@@ -76,7 +85,7 @@ export async function clickVisible(page, selector) {
 export async function openUserMenuItem(page, itemSelector) {
   const item = page.locator(itemSelector).filter({ visible: true });
   if (await item.count() === 0) await clickVisible(page, SELECTORS.userMenu);
-  await sleep(500);
+  await sleep(BEAT_MS);
   await clickVisible(page, itemSelector);
 }
 
@@ -120,8 +129,8 @@ export function signUpTasks(role, suggestedName) {
         const page = await learningPageOf(browser);
         for (const [selector, value] of [['#username', suggestedName], ['#password', CTF_PASSWORD], ['#confirmPassword', CTF_PASSWORD]]) {
           await page.fill(selector, '');
-          await page.locator(selector).pressSequentially(value, { delay: 70 });
-          await sleep(250);
+          await page.locator(selector).pressSequentially(value, { delay: TYPING_DELAY_MS });
+          await sleep(BEAT_MS / 2);
         }
       },
     },
@@ -193,7 +202,7 @@ export function selectTask(role, op, field, expected, text, finished) {
       const page = await browser.waitForInterceptorPage();
       await browser.focus(page);
       await page.locator(selector).scrollIntoViewIfNeeded();
-      await sleep(400);
+      await sleep(BEAT_MS / 2);
       await page.selectOption(selector, { label: value(state()) });
     },
   };
@@ -258,7 +267,7 @@ export function passkeyLoginTask(role, finished) {
         await clickVisible(page, SELECTORS.loginButton);
         await page.waitForURL('**/login');
       }
-      await sleep(600);
+      await sleep(BEAT_MS);
       await clickVisible(page, SELECTORS.passkeyLogin);
       await browser.focus(await browser.waitForInterceptorPage());
     },
@@ -289,7 +298,7 @@ export function keepSelectionTask(role, op, expected, text, finished) {
       await browser.focus(page);
       for (const [field, value] of mismatches(state())) {
         await page.locator(SELECT_IDS[op][field]).scrollIntoViewIfNeeded();
-        await sleep(400);
+        await sleep(BEAT_MS);
         await page.selectOption(SELECT_IDS[op][field], { label: value });
       }
     },
@@ -313,13 +322,13 @@ async function submitUsernameFirst(browser, username) {
   if (new URL(page.url()).pathname !== '/login') {
     await clickVisible(page, SELECTORS.loginButton);
     await page.waitForURL('**/login');
-    await sleep(500);
+    await sleep(BEAT_MS);
   }
   const field = page.locator(SELECTORS.usernameFirstUsername);
   if ((await field.inputValue()).trim() !== username) {
     await field.fill('');
-    await field.pressSequentially(username, { delay: 70 });
-    await sleep(300);
+    await field.pressSequentially(username, { delay: TYPING_DELAY_MS });
+    await sleep(BEAT_MS / 2);
   }
   await clickVisible(page, SELECTORS.usernameFirstContinue);
 }
@@ -365,8 +374,8 @@ export function passwordFallbackLoginTasks(role, username, finished) {
         : { page: 'learning', targets: [{ id: 'password', selectors: [SELECTORS.passwordFallbackPassword], label: `Type “${CTF_PASSWORD}”` }] }),
       run: async ({ browser }) => {
         const page = await learningPageOf(browser);
-        await page.locator(SELECTORS.passwordFallbackPassword).pressSequentially(CTF_PASSWORD, { delay: 70 });
-        await sleep(300);
+        await page.locator(SELECTORS.passwordFallbackPassword).pressSequentially(CTF_PASSWORD, { delay: TYPING_DELAY_MS });
+        await sleep(BEAT_MS / 2);
         await clickVisible(page, SELECTORS.passwordFallbackSubmit);
       },
     },
@@ -395,7 +404,6 @@ export function removeUserHandleTask(role, text, finished) {
     run: async ({ browser }) => {
       const page = await browser.waitForInterceptorPage();
       await browser.focus(page);
-      await sleep(1200);
       await page.evaluate((pattern) => {
         const textarea = document.getElementById('interceptorResponseTextarea');
         const match = new RegExp(pattern, 'm').exec(textarea.value);
@@ -403,7 +411,7 @@ export function removeUserHandleTask(role, text, finished) {
         textarea.focus();
         textarea.setSelectionRange(match.index, match.index + match[0].length);
       }, USER_HANDLE_LINE_PATTERN);
-      await sleep(600);
+      await sleep(SHOW_SELECTION_MS);
       await page.keyboard.press('Delete');
     },
   };

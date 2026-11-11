@@ -51,6 +51,8 @@ export const config = Object.freeze({
     discoverableLogin: readInt('DISCOVERABLE_LOGIN_VERIFIER_ID', 2),
     usernameFirstLogin: readInt('USERNAME_FIRST_LOGIN_VERIFIER_ID', 4),
   }),
+  /** "Do it for me": pause before each action, while the highlight shows where it happens. */
+  autopilotPauseMs: readInt('AUTOPILOT_PAUSE_MS', 2000),
   /** Where the browser containers of a demo are reachable. */
   browserTarget(demo, role) {
     return {

@@ -4,7 +4,7 @@ import {
   createCtfAccount, registerDefaultPasskey, logOutOfCtf, shownKeyName,
 } from '../setup.js';
 import {
-  VICTIM_KEY, ATTACKER_KEY, CTF_PASSWORD, SELECTORS, sleep,
+  VICTIM_KEY, ATTACKER_KEY, CTF_PASSWORD, SELECTORS, sleep, BEAT_MS, SHOW_SELECTION_MS,
   learning, interceptor, interceptorOpen, usernameOf,
   openSettingsTask, addPasskeyTasks, sendTask, logoutTask, keepSelectionTask,
   usernameFirstPasskeyLoginTask, passwordFallbackLoginTasks, removeUserHandleTask, passkeysToolsTabHighlight,
@@ -118,14 +118,13 @@ const copyCredentialIdTask = {
   run: async ({ browser, state }) => {
     const page = await browser.waitForInterceptorPage();
     await browser.focus(page);
-    await sleep(1200);
     await page.evaluate((id) => {
       const textarea = document.getElementById('interceptorRequestTextarea');
       const start = textarea.value.indexOf(id);
       textarea.focus();
       textarea.setSelectionRange(start, start + id.length);
     }, leakedId(state()));
-    await sleep(600);
+    await sleep(SHOW_SELECTION_MS);
     await page.keyboard.press('Control+C');
   },
 };
@@ -154,7 +153,7 @@ const pasteCredentialIdTask = {
     const field = page.locator(SELECTORS.keysUpdateB64url);
     await field.click();
     await page.keyboard.press('Control+V');
-    await sleep(300);
+    await sleep(BEAT_MS / 2);
     // Fall back to typing if the clipboard was not available to the automation.
     if ((await field.inputValue()).trim() !== leakedId(state())) await field.fill(leakedId(state()));
   },
@@ -202,7 +201,7 @@ const dismissLoginTask = {
   run: async ({ browser }) => {
     const page = await browser.waitForInterceptorPage();
     await browser.openPasskeysToolsTab(page, 'interceptor');
-    await sleep(400);
+    await sleep(BEAT_MS);
     await page.click(SELECTORS.dismiss);
     const learningTab = browser.learningPage();
     if (learningTab) await browser.focus(learningTab);

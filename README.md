@@ -12,7 +12,7 @@ Live, guided demos of a passkey attack from our paper *The State of Passkeys* (U
 - One-click setup and reset per version: fresh browser profiles, the PASSKEYS-ATTACKER extension installed and configured, key stores, and a fresh CTF instance with the vulnerable verifier preselected
 - Step-by-step guide that follows what happens in the browsers live and checks off each action
 - "Click here" highlights inside the real browsers, including which option to pick and which text to copy or delete
-- "Do it for me" button per step that performs the actions visibly in the browsers
+- "Do it for me" button per step that performs the actions visibly in the browsers, at a pace the audience can follow
 - Live view of the website's passkey database that shows the victim's public key being overwritten
 - Flag-captured, account-takeover and victim-lockout moments, plus a takeaways slide
 - Keyboard and presenter-remote navigation (PageUp/PageDown, arrow keys, `F` for fullscreen)

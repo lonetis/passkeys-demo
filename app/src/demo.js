@@ -4,7 +4,6 @@ import { PROFILE_BY_ROLE } from './setup.js';
 import { sleep } from './scenarios/common.js';
 
 const TICK_INTERVAL_MS = 500;
-const AUTOPILOT_PAUSE_MS = 900;
 const AUTOPILOT_TASK_TIMEOUT_MS = 25_000;
 const ROLES = ['victim', 'attacker'];
 const OWNER_BY_PROFILE = Object.freeze(Object.fromEntries(Object.entries(PROFILE_BY_ROLE).map(([role, profile]) => [profile, role])));
@@ -296,7 +295,7 @@ export class DemoController extends EventEmitter {
         if (generation !== this.generation || this.currentStep() !== step) return;
         if (task.done(this.guideState())) continue;
         const startedAt = Date.now();
-        await sleep(AUTOPILOT_PAUSE_MS);
+        await sleep(this.config.autopilotPauseMs);
         await task.run({ browser, state: () => this.guideState() });
         await this.waitUntil(() => task.done(this.guideState()), AUTOPILOT_TASK_TIMEOUT_MS);
         this.log.info(`autopilot: ${step.id}/${task.id} done in ${Date.now() - startedAt} ms`);
