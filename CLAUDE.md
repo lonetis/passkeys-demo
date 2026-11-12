@@ -41,6 +41,7 @@ Three scenarios ("versions"), each run as an independent **demo instance** on it
 │   ├── public/                  # Static UI
 │   │   ├── index.html, home.js  # Landing page (/): demo cards with live status from /api/demos
 │   │   ├── demo.html, demo.js   # Demo page (/<demo-id>): browsers, guide, database view
+│   │   ├── passkeys-attacker.svg # PASSKEYS-ATTACKER logo: brand mark and favicon
 │   │   └── style.css
 │   └── src/
 │       ├── server.js            # HTTP server, demo instances, /api/demos, /ws/<demo>, /vnc/<demo>/<role>, basic auth
@@ -126,6 +127,7 @@ Setup details worth knowing:
 ### UI (`public/`)
 
 - The client renders each section only when its inputs change, so CSS animations don't restart. The top bar links the versions.
+- The brand mark (top bar, landing page) and the favicon are the PASSKEYS-ATTACKER logo, copied from `frontend/public/logo.svg` of RUB-NDS/passkeys.tools with its viewBox cropped to the drawing. The page uses it as a CSS mask, so `background` sets its color (text color, accent on hover); as the favicon its embedded style turns it white in dark browser themes.
 - Guide row: step card (kicker with "Do it for me", title, lead, tasks; the step's `why` explainer next to the Next button), the attack diagram, and the website database with the last login's signature check.
 - The **diagram** is visible on every step. The intro and takeaways show it whole; otherwise the current step's rows sit in a highlighted band with animated arrows, past rows are muted, upcoming rows and outcomes that have not happened yet are dimmed, and the left column repeats the stepper markers.
 - The **database view** shows ownership with role icons and colors (😇 victim, 😈 attacker); an overwritten key is shown struck through with an arrow to the new one. The **signature check** shows signed-with key = / ≠ stored key → result. With `loginCheck: 'challenge'` it shows the passkeys as one line, the **login challenges** per session (start of the challenge, used by whom; another party's use in red), and the **challenge check** (signed challenge = / ≠ the session's → result; "accepted anyway" is the bug).
