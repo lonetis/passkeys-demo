@@ -298,7 +298,8 @@ function renderDatabase() {
 
 /** One line instead of the table, when the passkeys are only the backdrop (challenge test). */
 function renderPasskeySummary() {
-  const chips = state.passkeys.map((row) => partyChip(row.accountRole, 'passkey')).join(' ');
+  const chips = ROLES.flatMap((role) => state.passkeys.filter((row) => row.accountRole === role))
+    .map((row) => partyChip(row.accountRole, 'passkey')).join(' ');
   $('#passkey-summary').innerHTML = `<span class="summary-label">🔑 Passkeys</span> ${chips || '<span class="unused">none yet</span>'}`;
 }
 
@@ -374,7 +375,7 @@ function celebrationMarkup(celebration) {
   const victim = esc(state.names.victim ?? 'victim');
   switch (celebration.kind) {
     case 'flag':
-      return `<div class="celebration-card attacker">
+      return `<div class="celebration-card ${celebration.role === 'victim' ? 'victim' : 'attacker'}">
         <div class="celebration-title">🚩 Flag captured!</div>
         ${celebration.imageUrl ? `<img class="celebration-flag" src="${esc(celebration.imageUrl)}" alt="${esc(celebration.title)}">` : ''}
         <div class="celebration-text"><b>${esc(celebration.country)}</b> — the CTF detected the exploit: ${esc(celebration.detail ?? '')}</div>
@@ -413,7 +414,7 @@ function renderCelebration() {
   }
   overlay.innerHTML = celebrationMarkup(celebration);
   // Over the browser where it happened: the victim's browser is on the left, the attacker's on the right.
-  overlay.dataset.side = celebration.kind === 'lockout' ? 'left' : 'right';
+  overlay.dataset.side = celebration.role === 'victim' ? 'left' : 'right';
   overlay.hidden = false;
   clearTimeout(celebrationTimer);
   celebrationTimer = setTimeout(() => { overlay.hidden = true; }, CELEBRATION_MS);

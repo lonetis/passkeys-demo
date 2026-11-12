@@ -227,7 +227,7 @@ export class DemoController extends EventEmitter {
         this.clearNotice();
       } else if (role === 'attacker' && reward && !facts.overwrite) {
         facts.overwrite = { reward, keyName: send?.key ?? null };
-        if (interactive) this.celebrate({ kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title, detail: this.scenario.flagDetail });
+        if (interactive) this.celebrate(role, { kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title, detail: this.scenario.flagDetail });
         this.clearNotice();
       } else if (interactive && role === 'attacker' && !reward && this.currentStep().id === 'overwrite') {
         this.setNotice('warning', this.scenario.notices.overwriteMissed);
@@ -252,15 +252,15 @@ export class DemoController extends EventEmitter {
     if (result.ok && challengeSession) facts.sessions[challengeSession].usedBy = role;
     if (result.ok && reward && !facts.loginFlag) {
       facts.loginFlag = { role, reward };
-      if (interactive) this.celebrate({ kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title, detail: this.scenario.flagDetail });
+      if (interactive) this.celebrate(role, { kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title, detail: this.scenario.flagDetail });
       this.clearNotice();
     } else if (role === 'attacker' && result.ok && loggedInAs && loggedInAs === facts.names.victim && !facts.takeover) {
       facts.takeover = { user: loggedInAs };
-      if (interactive) this.celebrate({ kind: 'takeover', user: loggedInAs });
+      if (interactive) this.celebrate(role, { kind: 'takeover', user: loggedInAs });
       this.clearNotice();
     } else if (role === 'victim' && !result.ok && facts.overwrite && !facts.lockout) {
       facts.lockout = { error: facts.lastLogin.error };
-      if (interactive) this.celebrate({ kind: 'lockout', user: facts.names.victim });
+      if (interactive) this.celebrate(role, { kind: 'lockout', user: facts.names.victim });
       this.clearNotice();
     } else if (interactive && !result.ok && !this.currentStep().quietLoginFailures) {
       this.setNotice('warning', `Login failed: ${escapeHtml(facts.lastLogin.error)}. Check the interceptor and try again.`);
@@ -268,8 +268,9 @@ export class DemoController extends EventEmitter {
     this.publish();
   }
 
-  celebrate(details) {
-    this.celebration = { ...details, at: Date.now() };
+  /** Shows a celebration over the browser where it happened (`role`). */
+  celebrate(role, details) {
+    this.celebration = { ...details, role, at: Date.now() };
   }
 
   setNotice(level, html) {

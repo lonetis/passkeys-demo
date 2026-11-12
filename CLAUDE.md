@@ -7,7 +7,7 @@ Internal documentation for *State of Passkeys – Live Demos* (the passkeys demo
 Guided, live demos of passkey attacks from the paper *The State of Passkeys* (USENIX Security 2026) on the Fun with Flags and Passkeys CTF (`learning.passkeys.tools`), using PASSKEYS-ATTACKER (`passkeys.tools` frontend + Chrome extension + `db.passkeys.tools` remote storage):
 
 - **Credential Overwrite → Account Takeover** (§6.2.2 "Swap credid", §6.2.7 credential ID leak via `allowCredentials`; WebAuthn §7.1.26; CTF verifier #60 "Cred Overwrite").
-- **Challenge session binding** (§6.2.4, CWE-384; WebAuthn §7.2.11; CTF verifier #17 "Cross-Session Challenge").
+- **Challenge session binding** (§6.2.4, CWE-384 session fixation; WebAuthn §7.2.11; CTF verifier #17 "Cross-Session Challenge"): an attacker's challenge replayed in the victim's session.
 
 Three scenarios ("versions"), each run as an independent **demo instance** on its own pair of browsers. Display titles (`title`, Title Case) are listed in `DEMOS` order:
 
@@ -21,8 +21,10 @@ Three scenarios ("versions"), each run as an independent **demo instance** on it
   6. the victim's own login then fails (lockout).
 - **`challenge-binding`** ("Test: Challenge Binding"): both accounts are pre-created with a passkey each (registration verifier #29 "All Algorithms", so the website has no other bug) and signed in on `/settings`. Each browser has its own **local** key store, but the two **share a clipboard** (`sharedClipboard`), since both stand for one tester's computer. Login verifier: Cross-Session Challenge (#17, discoverable). The challenge is copied and pasted by hand, not with passkeys.tools' automatic *Challenge | Session Binding* attack (which needs a shared history and only takes challenges younger than a minute). Steps:
   1. both log out (one step with tasks in both browsers, `focus: 'both'`);
-  2. the victim starts a passkey login, copies the request's `challenge` (Ctrl+C, the guide pre-selects it) and clicks **Dismiss**: the challenge of the victim's session stays unused (the CTF keeps unused challenges in a global store for 10 minutes);
-  3. the attacker starts a passkey login, picks Credential ID and Key `attacker | ES256` (nothing is preselected without `allowCredentials`), opens passkeys.tools' **Assertion** tab and pastes the victim's challenge over the attacker's in the decoded `clientDataJSON` form (input `name$="[challenge]"`, pre-selected by the guide), then presses **Enter**: the form's change handler re-encodes `clientDataJSON` into the interceptor response and re-signs it. Back in the Interceptor tab, **Send**; the CTF accepts it and returns a reward.
+  2. the **attacker** starts a passkey login, copies the request's `challenge` (Ctrl+C, the guide pre-selects it) and clicks **Dismiss**: the challenge of the attacker's session stays unused (the CTF keeps unused challenges in a global store for 10 minutes);
+  3. the **victim** starts a passkey login, picks Credential ID and Key `victim | ES256` (nothing is preselected without `allowCredentials`), opens passkeys.tools' **Assertion** tab and pastes the attacker's challenge over the victim's in the decoded `clientDataJSON` form (input `name$="[challenge]"`, pre-selected by the guide), then presses **Enter**: the form's change handler re-encodes `clientDataJSON` into the interceptor response and re-signs it. Back in the Interceptor tab, **Send**; the CTF accepts the attacker's challenge in the victim's session and returns a reward (flag celebration over the victim's browser).
+
+  This direction follows the paper ("replaying an attacker challenge in the victim's session"; CWE-384) and PASSKEYS-ATTACKER's own test, which runs in the victim's context with the attacker's dismissed challenge.
 
 ## Tech Stack
 
@@ -129,7 +131,7 @@ Setup details worth knowing:
 - The **database view** shows ownership with role icons and colors (😇 victim, 😈 attacker); an overwritten key is shown struck through with an arrow to the new one. The **signature check** shows signed-with key = / ≠ stored key → result. With `loginCheck: 'challenge'` it shows the passkeys as one line, the **login challenges** per session (start of the challenge, used by whom; another party's use in red), and the **challenge check** (signed challenge = / ≠ the session's → result; "accepted anyway" is the bug).
 - The layout targets 1920×1080. Below 1500 px width or 950 px height the guide is denser, ownership chips drop the words "ID"/"key" (the column headers say it), the challenge test's passkey summary line is hidden, and the headline shrinks (ellipsis if it still does not fit next to the version switch).
 - noVNC uses `scaleViewport`. Both panels have equal width, because the 16:10 screens are height-bound at 1080p and a wider active panel would only add letterboxing. The active browser gets a glow and a "Your turn" chip; the other one is dimmed.
-- Celebration overlays cover the browser where it happened (flag and takeover: attacker, lockout: victim), below its header, so the "logged in as" status stays visible.
+- Celebration overlays cover the browser where it happened (the `role` the server gives each celebration: overwrite flag and takeover in the attacker's browser, lockout and the challenge test's flag in the victim's), below its header, so the "logged in as" status stays visible.
 - The stepper and landing page mark a `both` step with both role colors.
 - The landing page shows the demo cards (status refreshed every 3 s) and a "Try It on Your Own Machine" card (QR code + link to `PROJECT_URL`) in one grid. The demo cards sit in a `display: contents` wrapper, so re-rendering them leaves that card (and its image) alone.
 
