@@ -4,10 +4,11 @@ Live, guided demos of passkey attacks from our paper *The State of Passkeys* (US
 
 ## Features
 
-- Three versions, each on its own pair of browsers, so all can run at the same time:
+- Four versions, each on its own pair of browsers, so all can run at the same time:
   - **Demo: Account Takeover** (`/attacker-view`): the victim is already signed in with a passkey. Knowing only the username, the attacker learns the victim's credential ID from the login page (`allowCredentials`), puts it on their own key, and takes over the account.
   - **Test: Session Overwrite** (`/full-story`): both people start from scratch. The victim signs up and registers a passkey, then the attacker signs up, overwrites it with the attacker's key, logs in as the victim, and the victim is locked out.
   - **Test: Challenge Binding** (`/challenge-binding`): both people are signed in with their own passkeys and log out. The attacker starts a passkey login, copies its challenge and cancels it; the victim's login gets the attacker's unused challenge pasted in, and the website accepts a challenge it issued to another session (session fixation).
+  - **Test: User Verified Flag** (`/user-verified`): the victim is signed in with a passkey on a security key; the attacker has stolen the key, but not its PIN. The attacker logs in as the victim with the user verified (UV) flag turned off, and the website accepts the login although it requires user verification.
 - Real, interactive Chromium browsers streamed into the page (noVNC), each with its own skin color
 - PASSKEYS-ATTACKER's profile keys are labeled by role in the demo browsers (`victim | ES256`, `attacker | ES256`) instead of `profile1`/`profile2`
 - One-click setup and reset per version: fresh browser profiles, the PASSKEYS-ATTACKER extension installed and configured, key stores, accounts where a version needs them, and a fresh CTF instance with the vulnerable verifier preselected
@@ -17,6 +18,7 @@ Live, guided demos of passkey attacks from our paper *The State of Passkeys* (US
 - "Do it for me" button per step that performs the actions visibly in the browsers, at a pace the audience can follow
 - Live view of the website's passkey database that shows whose credential ID and whose public key each passkey holds, so the overwrite of the victim's key is visible, plus a signature check for every passkey login (signed with which key, checked against which stored key)
 - In the challenge binding test: the login challenge the website issued to each browser's session and whose login used it, plus a challenge check for every passkey login (signed which session's challenge, expected which one)
+- In the user verified flag test: a user verification check for every passkey login (what the website requires against the UV flag the response reports)
 - Flag-captured, account-takeover and victim-lockout moments, plus a takeaways slide
 - Keyboard and presenter-remote navigation (PageUp/PageDown, arrow keys, `F` for fullscreen)
 - Basic-auth protection; the browsers can only navigate to the demo sites
@@ -27,7 +29,7 @@ Live, guided demos of passkey attacks from our paper *The State of Passkeys* (US
 
 ### Try It on Your Own Machine
 
-You need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (Docker Desktop on macOS and Windows, there inside WSL) and about 4 GB of free memory. Then run:
+You need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (Docker Desktop on macOS and Windows, there inside WSL) and about 5 GB of free memory. Then run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lonetis/passkeys-demo/main/install.sh | sh
@@ -78,12 +80,13 @@ Put the app behind a TLS-terminating reverse proxy; it serves plain HTTP and Web
 
 ## Presenting
 
-- Open the site and pick a version on the start page: `/attacker-view`, `/full-story` or `/challenge-binding`. The switch in the top bar changes versions; each keeps its own state.
+- Open the site and pick a version on the start page: `/attacker-view`, `/full-story`, `/challenge-binding` or `/user-verified`. The switch in the top bar changes versions; each keeps its own state.
 - Open the page in fullscreen (`F`) on a large screen. It is designed for 1920×1080 and works on laptop screens.
 - The intro step is shown while the browsers are being prepared; **Start the demo** becomes available once setup is done (about 10 seconds).
 - Click directly into the browsers to perform each step yourself, or press **▶ Do it for me**. Highlights in the browsers show where to click next.
 - In the attacker's view, the guide selects the text to act on inside the browser: press **Ctrl+C** to copy the victim's credential ID, **Ctrl+V** to paste it in the Keys tab, and **Delete** to remove the attacker's user handle. If you clicked somewhere else first, the selection comes back automatically.
 - In the takeover versions, the last action step shows that the real victim is locked out afterwards. **Takeaways** summarizes the root cause, the fix, and our measurement results.
 - In the challenge binding test, both browsers share one clipboard, like two browser profiles on the tester's computer: press **Ctrl+C** on the attacker's challenge (pre-selected by the guide), and **Ctrl+V** in the victim's Assertion tab (the victim's own challenge is pre-selected), then **Enter**. The copied challenge stays usable for 10 minutes.
+- In the user verified flag test, both browsers use one key store, which stands for the victim's stolen security key: the attacker picks the victim's passkey, then sets **uv** to `false` in the Assertion tab's authenticator data, and PASSKEYS-ATTACKER re-signs the response.
 - Press **⟲ Reset demo** (twice, to confirm) between audiences. That version starts from scratch; the other versions are not affected.
 - The demos use the public services `learning.passkeys.tools`, `passkeys.tools` and `db.passkeys.tools`, so they need internet access.

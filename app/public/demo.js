@@ -290,6 +290,9 @@ function renderDatabase() {
     renderPasskeySummary();
     renderSessions();
     renderChallengeCheck();
+  } else if (state.demo.loginCheck === 'uv') {
+    renderPasskeys();
+    renderUserVerificationCheck();
   } else {
     renderPasskeys();
     renderSignatureCheck();
@@ -367,6 +370,33 @@ function renderChallengeCheck() {
       <div class="sig-col"><span class="sig-caption">Browser signed</span>${partyChip(login.challengeSession, 'challenge')}</div>
       <span class="sig-op ${match ? 'ok' : 'fail'}" title="${match ? 'matches' : 'does not match'}">${match ? '=' : '≠'}</span>
       <div class="sig-col"><span class="sig-caption">Session expects</span>${partyChip(login.role, 'challenge')}</div>
+    </div>
+    ${result}`;
+}
+
+/** Required user verification against the UV flag the login response reports. */
+function renderUserVerificationCheck() {
+  $('#login-check-title').innerHTML = '<span aria-hidden="true">🔐</span> Login: user verification check';
+  const login = state.lastLogin;
+  if (!login) {
+    $('#login-check').innerHTML = '<p class="login-empty">At login, the website requires user verification: the response’s UV flag must say the PIN or fingerprint was checked.</p>';
+    return;
+  }
+  const required = login.uvRequired !== false;
+  const verified = login.userVerified === true;
+  const match = verified || !required;
+  let result = `<span class="sig-result fail">✗ Login failed: ${esc(login.error)}</span>`;
+  if (login.ok && match) result = `<span class="sig-result ok">✓ User verified → logged in as <b>${esc(login.user)}</b></span>`;
+  else if (login.ok) result = `<span class="sig-result bad">⚠ Accepted anyway → logged in as <b>${esc(login.user)}</b></span>`;
+  else if (!match) result = '<span class="sig-result ok">✓ Rejected: user not verified</span>';
+  const flag = verified
+    ? '<span class="party-chip ok">UV = true<span class="chip-thing">(PIN checked)</span></span>'
+    : '<span class="party-chip fail">UV = false<span class="chip-thing">(no PIN)</span></span>';
+  $('#login-check').innerHTML = `
+    <div class="sig-flow">
+      <div class="sig-col"><span class="sig-caption">Website requires</span><span class="party-chip">${required ? '🔐 user verification' : 'no user verification'}</span></div>
+      <span class="sig-op ${match ? 'ok' : 'fail'}" title="${match ? 'matches' : 'does not match'}">${match ? '=' : '≠'}</span>
+      <div class="sig-col"><span class="sig-caption">Response reports</span>${flag}</div>
     </div>
     ${result}`;
 }

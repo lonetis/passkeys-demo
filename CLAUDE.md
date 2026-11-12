@@ -8,8 +8,9 @@ Guided, live demos of passkey attacks from the paper *The State of Passkeys* (US
 
 - **Credential Overwrite → Account Takeover** (§6.2.2 "Swap credid", §6.2.7 credential ID leak via `allowCredentials`; WebAuthn §7.1.26; CTF verifier #60 "Cred Overwrite").
 - **Challenge session binding** (§6.2.4, CWE-384 session fixation; WebAuthn §7.2.11; CTF verifier #17 "Cross-Session Challenge"): an attacker's challenge replayed in the victim's session.
+- **User verified flag** (§6.2.6, CWE-287 improper authentication, threat model "physical access to authenticator"; WebAuthn §7.2.17; CTF verifier #24 "No UV Flag"): a login without user verification accepted although the website required it.
 
-Three scenarios ("versions"), each run as an independent **demo instance** on its own pair of browsers. Display titles (`title`, Title Case) are listed in `DEMOS` order:
+Four scenarios ("versions"), each run as an independent **demo instance** on its own pair of browsers. Display titles (`title`, Title Case) are listed in `DEMOS` order:
 
 - **`attacker-view`** ("Demo: Account Takeover"): the victim is pre-created with a passkey and signed in on `/settings`; the attacker account is pre-created and logged out. The browsers share nothing but the CTF instance (each has its own **local** passkeys.tools store). Login verifier: Non-Discoverable (#4, username-first). The attacker:
   1. types `victim` at login, so the interceptor's request shows `allowCredentials` with the victim's credential ID, and copies it;
@@ -25,6 +26,9 @@ Three scenarios ("versions"), each run as an independent **demo instance** on it
   3. the **victim** starts a passkey login, picks Credential ID and Key `victim | ES256` (nothing is preselected without `allowCredentials`), opens passkeys.tools' **Assertion** tab and pastes the attacker's challenge over the victim's in the decoded `clientDataJSON` form (input `name$="[challenge]"`, pre-selected by the guide), then presses **Enter**: the form's change handler re-encodes `clientDataJSON` into the interceptor response and re-signs it. Back in the Interceptor tab, **Send**; the CTF accepts the attacker's challenge in the victim's session and returns a reward (flag celebration over the victim's browser).
 
   This direction follows the paper ("replaying an attacker challenge in the victim's session"; CWE-384) and PASSKEYS-ATTACKER's own test, which runs in the victim's context with the attacker's dismissed challenge.
+- **`user-verified`** ("Test: User Verified Flag"): only the victim has an account (registration verifier #29), with a passkey, signed in on `/settings`. Both browsers share one **remote** key store, which stands for the victim's security key that the attacker has stolen without its PIN. Login verifier: No UV Flag (#24, discoverable, `userVerification: "required"`, UV flag not checked). Steps, all in the attacker's browser:
+  1. starts a passkey login and picks User Handle `victim`, Credential ID and Key `victim | ES256` (nothing is preselected: the attacker's profile has no user on the site and there is no `allowCredentials`);
+  2. opens the **Assertion** tab, sets `authenticatorData` → `flags` → `uv` to `false` (json-editor renders booleans as `select[name$="[flags][uv]"]` with options `true`/`false`; its change handler re-encodes the authenticator data and re-signs), and sends it from the Interceptor tab. The CTF accepts the login as `victim` and returns a reward (flag celebration over the attacker's browser). passkeys.tools also has an automatic *User Verified* attack; the guide does it by hand.
 
 ## Tech Stack
 
@@ -60,14 +64,15 @@ Three scenarios ("versions"), each run as an independent **demo instance** on it
 │       │   ├── common.js        # Shared selectors, state helpers, task factories, completion facts
 │       │   ├── full-story.js    # Scenario: steps + setup stages + prepare()
 │       │   ├── attacker-view.js # Scenario: steps + setup + observe() for recon facts
-│       │   └── challenge-binding.js # Scenario: challenge session binding test
+│       │   ├── challenge-binding.js # Scenario: challenge session binding test
+│       │   └── user-verified.js # Scenario: user verified flag test
 │       └── log.js
 ├── browser/                     # One image, run once per role per demo
 │   ├── Dockerfile               # Bakes the passkeys.tools extension (git ref build arg)
 │   └── entrypoint.sh            # Xvnc + socat + Chromium restart loop + managed policies
 ├── docker-compose.dev.yml       # Local builds, app src/public mounted, node --watch
 ├── docker-compose.prod.yml      # GHCR images
-├── install.sh                   # One-line installer: prod compose + minimal .env in ~/passkeys-demo
+├── install.sh                   # One-line installer: prod compose + minimal .env in /tmp/passkeys-demo
 └── .github/workflows/docker.yml # Builds and pushes both images (amd64 + arm64) to GHCR
 ```
 
@@ -76,7 +81,8 @@ Three scenarios ("versions"), each run as an independent **demo instance** on it
 ```
 Viewer ──HTTP/WS──▶ app ─┬─ demo "full-story"        ──CDP/VNC──▶ full-story-victim, full-story-attacker
                          ├─ demo "attacker-view"     ──CDP/VNC──▶ attacker-view-victim, attacker-view-attacker
-                         └─ demo "challenge-binding" ──CDP/VNC──▶ challenge-binding-victim, challenge-binding-attacker
+                         ├─ demo "challenge-binding" ──CDP/VNC──▶ challenge-binding-victim, challenge-binding-attacker
+                         └─ demo "user-verified"     ──CDP/VNC──▶ user-verified-victim, user-verified-attacker
 ```
 
 - **Demo instances**: `DEMOS` lists scenario IDs; for each, `server.js` creates a `DemoController` with two `BrowserController`s at hosts from `BROWSER_HOST_PATTERN` (`{demo}-{role}`, matching the compose service names). Instances are fully independent (own CTF instance, own reset, own WebSocket clients).
@@ -105,22 +111,23 @@ A scenario exports `{ id, title, headline, summary, presetNames, separateKeyStor
 Setup details worth knowing:
 
 - Extension storage: `interceptorMode` = `profile1` (victim) / `profile2` (attacker), `popupMode` = `inline` (interceptor opens as a tab, which reads best over VNC), `frontendUrl`.
-- Remote key store (`full-story`, `challenge-binding`): **sequential on purpose**. The frontend generates missing profile keys on load, so the victim browser generates them first (waits for `.tab-content.loaded`) and the attacker browser then finds them. Running both at once races and can replace keys.
+- Remote key store (`full-story`, `user-verified`): **sequential on purpose**. The frontend generates missing profile keys on load, so the victim browser generates them first (waits for `.tab-content.loaded`) and the attacker browser then finds them. Running both at once races and can replace keys.
 - CTF cookies `fwf_instance_id` (shared UUID, same effect as "Switch Instance"), `fwf_verifier_reg`, `fwf_verifier_auth`.
-- Accounts in a shared remote store (`challenge-binding`) are created and get their passkeys one after the other, so the two registrations do not race on the store.
+- Accounts that get passkeys behind the scenes register only after the key stores are set up; with local stores (`challenge-binding`) both accounts are prepared in parallel.
 
 ### Guide engine (`scenarios/common.js`, `demo.js`)
 
-- A **tick** (500 ms) snapshots both browsers. On the CTF page: path, logged-in user, form/modal state, username-first form. On the interceptor tab: op, selected options, active passkeys.tools tab, `allowCredentials`, whether the response has a `userHandle`, the request's challenge and the challenge the response signs (decoded `clientDataJSON`), the challenge in the Assertion tab's `clientDataJSON` form, the Keys form, and the local store's profile credential IDs. The tick then runs `observe`, draws the current task's highlight in the focused browser, and publishes state if it changed.
+- A **tick** (500 ms) snapshots both browsers. On the CTF page: path, logged-in user, form/modal state, username-first form. On the interceptor tab: op, selected options, active passkeys.tools tab, `allowCredentials`, whether the response has a `userHandle`, the request's challenge and the challenge the response signs (decoded `clientDataJSON`), the challenge in the Assertion tab's `clientDataJSON` form, the request's `userVerification` and the UV flag of the response's `authenticatorData`, the Keys form, and the local store's profile credential IDs. The tick then runs `observe`, draws the current task's highlight in the focused browser, and publishes state if it changed.
 - Each task carries the `role` of the browser it acts in (the task factories set it; otherwise the step's `focus`). Highlights and "Do it for me" use that browser, and the published step's `acting` role (current task's) drives the "Your turn" glow, so a `both` step hands the turn from one browser to the other.
+- Tests that edit the signed login response share the Assertion tab tasks from `common.js`: `openAssertionTabTask(role, finished)` and `assertionSendTask(role, finished)` (back to the Interceptor tab, then Send).
 - **Task `done` predicates are evaluated live and never latched**, and each one also accepts all later states of the flow. The first unfinished task is therefore always the correct next action, including after detours (closed interceptor, wrong selection sent). Completion of a step depends only on **facts**.
 - Key ownership comes from the key name prefix of the interceptor selection at Send (`victim`/`attacker`, or `profile1`/`profile2`), falling back to the acting browser's role.
 - **Facts** come from events:
-  - `challenge-issued`: CTF `/api/passkey/{registration,authentication}/options` responses (`options.challenge`). Login challenges feed the **sessions** model: per browser session the challenge the website issued, and whose login used it.
-  - `passkey-result`: CTF `/api/passkey/{registration,authentication}/verify` responses, captured via Playwright network events. The credential ID comes from the request body (`credential.id`), the signed challenge from its `clientDataJSON`. A login with a reward (a login verifier's exploit) sets `loginFlag` and celebrates the flag. These events are also processed while preparing, so pre-registered passkeys appear in the database view; notices and celebrations are only shown when ready.
+  - `challenge-issued`: CTF `/api/passkey/{registration,authentication}/options` responses (`options.challenge`, `options.userVerification`). Login challenges feed the **sessions** model: per browser session the challenge the website issued, the user verification it asked for, and whose login used it.
+  - `passkey-result`: CTF `/api/passkey/{registration,authentication}/verify` responses, captured via Playwright network events. The credential ID comes from the request body (`credential.id`), the signed challenge from its `clientDataJSON`, a login's UV flag from its `authenticatorData` (flags byte after the 32-byte RP ID hash). A login with a reward (a login verifier's exploit) sets `loginFlag` and celebrates the flag. These events are also processed while preparing, so pre-registered passkeys appear in the database view; notices and celebrations are only shown when ready.
   - `report`: an init script reports user actions via `exposeBinding`, namely the interceptor selection at the exact moment Send is clicked (`send`), the request's challenge when Dismiss is clicked (`dismiss` → `lastDismiss`), and copied text (`copy`).
 - **Highlights** (`applyHighlights`) outline an element and show a tip. On listbox selects they mark an option. In textareas and text inputs they select text (`select.text` / `select.pattern`) and re-apply it whenever focus or selection was lost, so one keypress (Ctrl+C, Ctrl+V, Delete) acts on it. An element taller than the viewport is scrolled so its top shows below room for the tip (centering it would hide its first lines, e.g. the request's challenge), and its tip is pinned to the visible part. Autopilot runs focus textareas with `preventScroll`.
-- The **database view** is a model built from the facts: per credential ID the account, whose credential ID it is (the registering browser's role) and whose public key is stored. A registration with a known credential ID that carries a reward means the stored key was overwritten (the previous owner is kept to show the swap). Each passkey login records whose key signed it and whose key was stored for that credential ID at that moment, for the signature check view, and whose session issued the challenge it signed, for the challenge check view.
+- The **database view** is a model built from the facts: per credential ID the account, whose credential ID it is (the registering browser's role) and whose public key is stored. A registration with a known credential ID that carries a reward means the stored key was overwritten (the previous owner is kept to show the swap). Each passkey login records whose key signed it and whose key was stored for that credential ID at that moment, for the signature check view, whose session issued the challenge it signed, for the challenge check view, and whether that session required user verification and the response's UV flag, for the user verification check.
 - **Autopilot** runs the remaining tasks' `run()` functions with Playwright in the real browsers, waiting for each task's predicate before the next one; per-task durations are logged. It is paced for an audience: before each task it pauses (`AUTOPILOT_PAUSE_MS`) while the highlight shows where the action happens, and inside tasks it uses `BEAT_MS`, `TYPING_DELAY_MS` and `SHOW_SELECTION_MS` from `common.js`.
 - Texts are HTML authored in the scenario files; `{victim}`, `{attacker}`, `{flag}` and `{leaked}` are replaced server-side, with user-typed names escaped.
 
@@ -130,7 +137,7 @@ Setup details worth knowing:
 - The brand mark (top bar, landing page) and the favicon are the PASSKEYS-ATTACKER logo, copied from `frontend/public/logo.svg` of RUB-NDS/passkeys.tools with its viewBox cropped to the drawing. The page uses it as a CSS mask, so `background` sets its color (text color, accent on hover); as the favicon its embedded style turns it white in dark browser themes.
 - Guide row: step card (kicker with "Do it for me", title, lead, tasks; the step's `why` explainer next to the Next button), the attack diagram, and the website database with the last login's signature check.
 - The **diagram** is visible on every step. The intro and takeaways show it whole; otherwise the current step's rows sit in a highlighted band with animated arrows, past rows are muted, upcoming rows and outcomes that have not happened yet are dimmed, and the left column repeats the stepper markers.
-- The **database view** shows ownership with role icons and colors (😇 victim, 😈 attacker); an overwritten key is shown struck through with an arrow to the new one. The **signature check** shows signed-with key = / ≠ stored key → result. With `loginCheck: 'challenge'` it shows the passkeys as one line, the **login challenges** per session (start of the challenge, used by whom; another party's use in red), and the **challenge check** (signed challenge = / ≠ the session's → result; "accepted anyway" is the bug).
+- The **database view** shows ownership with role icons and colors (😇 victim, 😈 attacker); an overwritten key is shown struck through with an arrow to the new one. The **signature check** shows signed-with key = / ≠ stored key → result. With `loginCheck: 'challenge'` it shows the passkeys as one line, the **login challenges** per session (start of the challenge, used by whom; another party's use in red), and the **challenge check** (signed challenge = / ≠ the session's → result; "accepted anyway" is the bug). With `loginCheck: 'uv'` it shows the passkey table and the **user verification check** (website requires user verification = / ≠ the response's UV flag → result).
 - The layout targets 1920×1080. Below 1500 px width or 950 px height the guide is denser, ownership chips drop the words "ID"/"key" (the column headers say it), the challenge test's passkey summary line is hidden, and the headline shrinks (ellipsis if it still does not fit next to the version switch).
 - noVNC uses `scaleViewport`. Both panels have equal width, because the 16:10 screens are height-bound at 1080p and a wider active panel would only add letterboxing. The active browser gets a glow and a "Your turn" chip; the other one is dimmed.
 - Celebration overlays cover the browser where it happened (the `role` the server gives each celebration: overwrite flag and takeover in the attacker's browser, lockout and the challenge test's flag in the victim's), below its header, so the "logged in as" status stays visible.

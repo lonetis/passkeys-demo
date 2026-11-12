@@ -34,12 +34,14 @@ function emptyFacts(presetNames) {
     passkeys: new Map(),
     /**
      * Model of the website's login sessions, one per browser: the challenge the website
-     * issued to it for a passkey login, and whose login used that challenge (if any).
+     * issued to it for a passkey login, the user verification it asked for, and whose login
+     * used that challenge (if any).
      */
     sessions: { victim: null, attacker: null },
     /**
-     * Last passkey login: whose key signed it, whose key the website checked it with, and
-     * whose session issued the challenge it signed.
+     * Last passkey login: whose key signed it, whose key the website checked it with, whose
+     * session issued the challenge it signed, whether that session's request required user
+     * verification, and the response's user verified (UV) flag.
      */
     lastLogin: null,
     /** Facts a scenario latches itself in its observe() hook. */
@@ -177,9 +179,9 @@ export class DemoController extends EventEmitter {
     });
   }
 
-  onChallengeIssued(role, { op, challenge }) {
+  onChallengeIssued(role, { op, challenge, userVerification }) {
     if (this.phase === 'failed' || op !== 'get') return;
-    this.facts.sessions[role] = { challenge, usedBy: null };
+    this.facts.sessions[role] = { challenge, userVerification: userVerification ?? null, usedBy: null };
     this.publish();
   }
 
@@ -247,6 +249,8 @@ export class DemoController extends EventEmitter {
       signedWith: keyOwner(send?.key) ?? role,
       storedKey: facts.passkeys.get(result.credentialId)?.keyOwner ?? null,
       challengeSession,
+      uvRequired: challengeSession ? facts.sessions[challengeSession].userVerification === 'required' : null,
+      userVerified: result.userVerified ?? null,
       at: Date.now(),
     };
     if (result.ok && challengeSession) facts.sessions[challengeSession].usedBy = role;

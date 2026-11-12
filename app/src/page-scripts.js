@@ -62,6 +62,16 @@ export function snapshotInterceptorPage() {
       return null;
     }
   };
+  /** The user verified (UV) flag of base64url authenticator data (flags byte after the RP ID hash). */
+  const userVerified = (encoded) => {
+    try {
+      const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      const bytes = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='));
+      return bytes.length > 32 ? Boolean(bytes.charCodeAt(32) & 0x04) : null;
+    } catch {
+      return null;
+    }
+  };
   // Keys of a local (non-remote) passkeys.tools store, to see credential IDs edited in the Keys tab.
   const storedKeys = parseJson(localStorage.getItem('keys')) ?? {};
   const keyCredentialIds = Object.fromEntries(Object.entries(storedKeys)
@@ -83,6 +93,9 @@ export function snapshotInterceptorPage() {
     responseChallenge: typeof response?.clientDataJSON === 'string' ? decodeClientData(response.clientDataJSON)?.challenge ?? null : null,
     // The challenge in the Assertion tab's decoded clientDataJSON form (editable there).
     assertionChallenge: document.querySelector('#assertionClientDataJSONDecCard input[name$="[challenge]"]')?.value ?? null,
+    // What the website asks of the authenticator, and the UV flag the response carries.
+    requestUserVerification: request?.userVerification ?? null,
+    responseUserVerified: typeof response?.authenticatorData === 'string' ? userVerified(response.authenticatorData) : null,
     keysForm: {
       b64url: document.getElementById('keysUpdateCredentialIdB64urlInput')?.value ?? '',
       key: selectedText('keysUpdateCredentialIdSelect'),

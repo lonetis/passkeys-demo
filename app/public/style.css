@@ -619,6 +619,8 @@ a.brand-mark:hover { background: var(--accent); }
 }
 .party-chip.victim { background: var(--victim-soft); border-color: var(--victim); color: var(--victim); }
 .party-chip.attacker { background: var(--attacker-soft); border-color: var(--attacker); color: #fca5a5; }
+.party-chip.ok { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.party-chip.fail { background: rgba(248, 113, 113, 0.12); border-color: var(--danger); color: var(--danger); }
 .party-chip.replaced { opacity: 0.55; text-decoration: line-through; text-decoration-thickness: 2px; }
 .key-cell { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .replacement { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }

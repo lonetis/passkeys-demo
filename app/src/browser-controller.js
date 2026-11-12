@@ -21,6 +21,21 @@ function signedChallenge(credential) {
   }
 }
 
+/** Offset of the flags byte in authenticator data, after the 32-byte RP ID hash. */
+const AUTH_DATA_FLAGS_OFFSET = 32;
+const FLAG_USER_VERIFIED = 0x04;
+
+/** The user verified (UV) flag of a login response's authenticator data, null if unreadable. */
+function userVerifiedFlag(credential) {
+  try {
+    const authenticatorData = Buffer.from(credential.response.authenticatorData, 'base64url');
+    if (authenticatorData.length <= AUTH_DATA_FLAGS_OFFSET) return null;
+    return Boolean(authenticatorData[AUTH_DATA_FLAGS_OFFSET] & FLAG_USER_VERIFIED);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Remote-controls one demo browser (a browser container) over the Chrome DevTools Protocol.
  *
@@ -28,11 +43,13 @@ function signedChallenge(credential) {
  *  - "report" ({ type: 'send', op, credentialId, key, userHandle }) when "Send" is clicked in
  *    the PASSKEYS-ATTACKER interceptor, captured synchronously so the selection is exact;
  *    ({ type: 'copy', text }) when text is copied in any page.
- *  - "challenge-issued" ({ op, challenge }) whenever the CTF website hands this browser's
- *    session a registration / authentication challenge.
- *  - "passkey-result" ({ op, ok, status, credentialId, challenge, body }) for every
- *    registration / authentication verification answered by the CTF website; `challenge` is
- *    the one the browser signed (from clientDataJSON).
+ *  - "challenge-issued" ({ op, challenge, userVerification }) whenever the CTF website hands
+ *    this browser's session a registration / authentication challenge; `userVerification` is
+ *    what a login request asks of the authenticator ("required", "preferred", ...).
+ *  - "passkey-result" ({ op, ok, status, credentialId, challenge, userVerified, body }) for
+ *    every registration / authentication verification answered by the CTF website;
+ *    `challenge` is the one the browser signed (from clientDataJSON), `userVerified` the UV
+ *    flag of a login's authenticator data.
  *  - "disconnected" when the CDP connection drops unexpectedly.
  */
 export class BrowserController extends EventEmitter {
@@ -143,7 +160,9 @@ export class BrowserController extends EventEmitter {
         body = null;
       }
       if (match[2] === 'options') {
-        if (response.ok() && body?.options?.challenge) this.emit('challenge-issued', { op, challenge: body.options.challenge });
+        if (response.ok() && body?.options?.challenge) {
+          this.emit('challenge-issued', { op, challenge: body.options.challenge, userVerification: body.options.userVerification ?? null });
+        }
         return;
       }
       // The CTF posts { credential: <WebAuthn response JSON>, ... }.
@@ -159,6 +178,7 @@ export class BrowserController extends EventEmitter {
         status: response.status(),
         credentialId: credential?.id ?? null,
         challenge: signedChallenge(credential),
+        userVerified: op === 'get' ? userVerifiedFlag(credential) : null,
         body,
       });
     });
