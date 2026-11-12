@@ -446,6 +446,46 @@ export function passkeysToolsTabHighlight(s, role, tab, label) {
   };
 }
 
+/** Opens passkeys.tools' Assertion tab, where the login response can be edited and re-signed. */
+export function openAssertionTabTask(role, finished) {
+  return {
+    role,
+    id: 'open-assertion-tab',
+    text: 'Open the <b>Assertion</b> tab (☰ menu)',
+    done: (s) => interceptor(s, role)?.tab === '/assertion' || finished(s),
+    highlight: (s) => (interceptorOpen(s, role, 'get') ? passkeysToolsTabHighlight(s, role, 'assertion', 'Click “Assertion”') : null),
+    run: async ({ browser }) => {
+      const page = await browser.waitForInterceptorPage();
+      await browser.openPasskeysToolsTab(page, 'assertion');
+    },
+  };
+}
+
+/** After editing in the Assertion tab: back to the Interceptor tab and send the response. */
+export function assertionSendTask(role, finished) {
+  return {
+    role,
+    id: 'send',
+    text: 'Back to <b>Interceptor</b> → <b>Send</b>',
+    done: finished,
+    highlight: (s) => {
+      if (!interceptorOpen(s, role, 'get')) return null;
+      if (interceptor(s, role).tab !== '/interceptor') {
+        return passkeysToolsTabHighlight(s, role, 'interceptor', 'Click “Interceptor”');
+      }
+      return { page: 'interceptor', targets: [{ id: 'send', selectors: [SELECTORS.send], label: 'Click “Send”' }] };
+    },
+    run: async ({ browser }) => {
+      const page = await browser.waitForInterceptorPage();
+      await browser.openPasskeysToolsTab(page, 'interceptor');
+      await sleep(BEAT_MS);
+      await page.click(SELECTORS.send);
+      const learningTab = browser.learningPage();
+      if (learningTab) await browser.focus(learningTab);
+    },
+  };
+}
+
 // ─── Facts that complete steps ──────────────────────────────────────────────
 
 export const victimHasPasskey = (s) => Boolean(s.facts.victimPasskey);

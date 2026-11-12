@@ -7,6 +7,7 @@ import {
   VICTIM_KEY, CTF_PASSWORD, SELECTORS, sleep, BEAT_MS, SHOW_SELECTION_MS,
   learning, interceptor, interceptorOpen,
   logoutTask, passkeyLoginTask, selectTask, passkeysToolsTabHighlight,
+  openAssertionTabTask, assertionSendTask,
 } from './common.js';
 
 /**
@@ -143,18 +144,6 @@ const dismissTask = {
   },
 };
 
-const openAssertionTabTask = {
-  role: 'victim',
-  id: 'open-assertion-tab',
-  text: 'Open the <b>Assertion</b> tab (☰ menu)',
-  done: (s) => interceptor(s, 'victim')?.tab === '/assertion' || challengeSwapped(s) || challengeAccepted(s),
-  highlight: (s) => (interceptorOpen(s, 'victim', 'get') ? passkeysToolsTabHighlight(s, 'victim', 'assertion', 'Click “Assertion”') : null),
-  run: async ({ browser }) => {
-    const page = await browser.waitForInterceptorPage();
-    await browser.openPasskeysToolsTab(page, 'assertion');
-  },
-};
-
 const pasteChallengeTask = {
   role: 'victim',
   id: 'paste-challenge',
@@ -190,28 +179,6 @@ const pasteChallengeTask = {
     // Fall back to typing if the shared clipboard did not reach this browser.
     if ((await field.inputValue()).trim() !== copiedChallenge(state())) await field.fill(copiedChallenge(state()));
     await page.keyboard.press('Enter');
-  },
-};
-
-const sendTask = {
-  role: 'victim',
-  id: 'send',
-  text: 'Back to <b>Interceptor</b> → <b>Send</b>',
-  done: challengeAccepted,
-  highlight: (s) => {
-    if (!interceptorOpen(s, 'victim', 'get')) return null;
-    if (interceptor(s, 'victim').tab !== '/interceptor') {
-      return passkeysToolsTabHighlight(s, 'victim', 'interceptor', 'Click “Interceptor”');
-    }
-    return { page: 'interceptor', targets: [{ id: 'send', selectors: [SELECTORS.send], label: 'Click “Send”' }] };
-  },
-  run: async ({ browser }) => {
-    const page = await browser.waitForInterceptorPage();
-    await browser.openPasskeysToolsTab(page, 'interceptor');
-    await sleep(BEAT_MS);
-    await page.click(SELECTORS.send);
-    const learningTab = browser.learningPage();
-    if (learningTab) await browser.focus(learningTab);
   },
 };
 
@@ -284,9 +251,9 @@ const steps = [
       passkeyLoginTask('victim', challengeAccepted),
       selectTask('victim', 'get', 'credentialId', VICTIM_KEY, `<b>Credential ID</b>: <code>${VICTIM_KEY}</code>`, challengeAccepted),
       selectTask('victim', 'get', 'key', VICTIM_KEY, `<b>Key</b>: <code>${VICTIM_KEY}</code>`, challengeAccepted),
-      openAssertionTabTask,
+      openAssertionTabTask('victim', (s) => challengeSwapped(s) || challengeAccepted(s)),
       pasteChallengeTask,
-      sendTask,
+      assertionSendTask('victim', challengeAccepted),
     ],
     complete: challengeAccepted,
     doneMessage: '🚩 Accepted! Flag captured: {flag}',
