@@ -159,8 +159,22 @@ export class DemoController extends EventEmitter {
 
   onReport(role, payload) {
     if (payload?.type === 'send') this.facts.lastSend[role] = payload;
-    if (payload?.type === 'copy') this.facts.lastCopy[role] = String(payload.text ?? '');
+    if (payload?.type === 'copy') {
+      this.facts.lastCopy[role] = String(payload.text ?? '');
+      if (this.scenario.sharedClipboard) this.shareClipboard(role, this.facts.lastCopy[role]);
+    }
     if (payload?.type === 'dismiss') this.facts.lastDismiss[role] = { op: payload.op, challenge: payload.challenge ?? null, at: Date.now() };
+  }
+
+  /**
+   * Both browsers stand for one tester's computer: text copied in one is pasted in the other
+   * (scenarios with sharedClipboard).
+   */
+  shareClipboard(fromRole, text) {
+    const toRole = ROLES.find((role) => role !== fromRole);
+    this.browsers[toRole].setClipboard(text).catch((error) => {
+      this.log.warn(`could not share the clipboard with the ${toRole} browser: ${error.message}`);
+    });
   }
 
   onChallengeIssued(role, { op, challenge }) {

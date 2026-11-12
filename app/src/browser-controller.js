@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { lookup } from 'node:dns/promises';
 import { chromium } from 'playwright-core';
 import { createLogger } from './log.js';
+import { VncClipboard } from './vnc-clipboard.js';
 import {
   snapshotLearningPage, snapshotInterceptorPage, applyHighlights, reportUserActions, relabelPasskeysTools,
 } from './page-scripts.js';
@@ -39,7 +40,7 @@ export class BrowserController extends EventEmitter {
    * toolView: { labels, hidden } for relabelPasskeysTools (profile names shown as roles, and
    * profiles whose keys are hidden in this browser).
    */
-  constructor(role, { host, cdpPort }, { learningUrl, passkeysToolsUrl, toolView }) {
+  constructor(role, { host, cdpPort, vncPort }, { learningUrl, passkeysToolsUrl, toolView }) {
     super();
     this.role = role;
     this.toolView = toolView;
@@ -48,6 +49,7 @@ export class BrowserController extends EventEmitter {
     this.learningUrl = learningUrl;
     this.passkeysToolsUrl = passkeysToolsUrl;
     this.log = createLogger(`browser:${host}`);
+    this.clipboard = new VncClipboard({ host, port: vncPort }, this.log);
     this.browser = null;
     this.context = null;
     this.expectingDisconnect = false;
@@ -203,6 +205,11 @@ export class BrowserController extends EventEmitter {
       await sleep(400);
     }
     await button.click();
+  }
+
+  /** Replaces the text on this browser's clipboard (what Ctrl+V pastes). */
+  async setClipboard(text) {
+    await this.clipboard.write(text);
   }
 
   /** Brings a tab to the front so the audience sees what is being automated. */

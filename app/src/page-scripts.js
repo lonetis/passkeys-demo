@@ -81,11 +81,8 @@ export function snapshotInterceptorPage() {
     // The website's challenge in the request, and the challenge the response signs.
     challenge: request?.challenge ?? null,
     responseChallenge: typeof response?.clientDataJSON === 'string' ? decodeClientData(response.clientDataJSON)?.challenge ?? null : null,
-    // The selected entry under "Attacks" (e.g. "Challenge | Session Binding") and its error, if any.
-    attack: document.querySelector('input[name="modification"]:checked')?.value ?? null,
-    attackError: isVisible(document.querySelector('#interceptorModifications .alert'))
-      ? document.querySelector('#interceptorModifications .alert').textContent.trim()
-      : null,
+    // The challenge in the Assertion tab's decoded clientDataJSON form (editable there).
+    assertionChallenge: document.querySelector('#assertionClientDataJSONDecCard input[name$="[challenge]"]')?.value ?? null,
     keysForm: {
       b64url: document.getElementById('keysUpdateCredentialIdB64urlInput')?.value ?? '',
       key: selectedText('keysUpdateCredentialIdSelect'),
@@ -144,8 +141,8 @@ export function reportUserActions() {
  * targets: [{ id, selectors: string[], label, option?: string, select?: { text?, pattern? } }]
  * The first visible element matching any selector is highlighted; `option` additionally
  * marks (and scrolls to) the option with that text inside a listbox <select>; `select`
- * selects the given text (or first regex match, multiline) inside a textarea once, so a
- * single keypress (Ctrl+C, Delete) acts on it.
+ * selects the given text (or first regex match, multiline) inside a textarea or text input
+ * once, so a single keypress (Ctrl+C, Ctrl+V, Delete) acts on it.
  */
 export function applyHighlights(targets) {
   const STYLE_ID = 'pkdemo-style';
@@ -244,7 +241,7 @@ export function applyHighlights(targets) {
       }
     }
 
-    if (target.select && element.tagName === 'TEXTAREA') {
+    if (target.select && (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT')) {
       const value = element.value;
       let start = -1;
       let length = 0;
