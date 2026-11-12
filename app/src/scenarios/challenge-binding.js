@@ -175,7 +175,7 @@ const steps = [
     short: 'Intro',
     marker: 'i',
     focus: null,
-    kicker: 'Test · Challenge binding',
+    kicker: 'Test · Challenge Binding',
     title: 'Is the login challenge bound to the session?',
     lead: 'Each passkey login signs a fresh challenge from the website. It may only count in the session that asked for it.',
     points: [
@@ -281,7 +281,7 @@ const diagram = [
 
 export default {
   id: 'challenge-binding',
-  title: 'test: challenge binding',
+  title: 'Test: Challenge Binding',
   headline: 'Challenge <span class="arrow">↔</span> Session Binding',
   summary: 'Both people are signed in with passkeys. They log out, the victim starts a login and cancels it, and the attacker logs in with the victim’s unused challenge, which the website accepts.',
   presetNames: { victim: VICTIM_NAME, attacker: ATTACKER_NAME },

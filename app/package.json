@@ -2,7 +2,7 @@
   "name": "passkeys-demo-app",
   "version": "1.0.0",
   "private": true,
-  "description": "Guided live demo of the passkey Credential Overwrite attack using PASSKEYS-ATTACKER and the Fun with Flags and Passkeys CTF",
+  "description": "State of Passkeys – Live Demos: guided passkey attack demos and tests with PASSKEYS-ATTACKER and the Fun with Flags and Passkeys CTF",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

@@ -73,7 +73,7 @@ function render() {
 }
 
 function renderVersions() {
-  document.title = `${state.demo.title} · Passkey Demos`;
+  document.title = `${state.demo.title} · State of Passkeys – Live Demos`;
   $('#headline').innerHTML = state.demo.headline;
   $('#versions').innerHTML = state.demos.map((demo) => `
     <a class="version-link${demo.id === state.demo.id ? ' active' : ''}" href="/${encodeURIComponent(demo.id)}"

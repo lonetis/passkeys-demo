@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Internal documentation for the passkeys demo. User-facing docs live in `README.md`; environment variables are documented only in `.env.example`.
+Internal documentation for *State of Passkeys – Live Demos* (the passkeys demo). User-facing docs live in `README.md`; environment variables are documented only in `.env.example`.
 
 ## Purpose
 
@@ -9,17 +9,17 @@ Guided, live demos of passkey attacks from the paper *The State of Passkeys* (US
 - **Credential Overwrite → Account Takeover** (§6.2.2 "Swap credid", §6.2.7 credential ID leak via `allowCredentials`; WebAuthn §7.1.26; CTF verifier #60 "Cred Overwrite").
 - **Challenge session binding** (§6.2.4, CWE-384; WebAuthn §7.2.11; CTF verifier #17 "Cross-Session Challenge").
 
-Three scenarios ("versions"), each run as an independent **demo instance** on its own pair of browsers. Display titles (`title`) are lowercase on purpose and listed in `DEMOS` order:
+Three scenarios ("versions"), each run as an independent **demo instance** on its own pair of browsers. Display titles (`title`, Title Case) are listed in `DEMOS` order:
 
-- **`full-story`** ("demo: account takeover"): both people start from scratch (sign-ups, the victim's passkey, overwrite, takeover, lockout). Both browsers share one remote passkeys.tools key store, so the victim's credential ID shows up in the attacker's interceptor as `victim | ES256`. Login verifier: Discoverable (#2).
-- **`attacker-view`** ("test: session overwrite"): the victim is pre-created with a passkey and signed in on `/settings`; the attacker account is pre-created and logged out. The browsers share nothing but the CTF instance (each has its own **local** passkeys.tools store). Login verifier: Non-Discoverable (#4, username-first). The attacker:
+- **`full-story`** ("Demo: Account Takeover"): both people start from scratch (sign-ups, the victim's passkey, overwrite, takeover, lockout). Both browsers share one remote passkeys.tools key store, so the victim's credential ID shows up in the attacker's interceptor as `victim | ES256`. Login verifier: Discoverable (#2).
+- **`attacker-view`** ("Test: Session Overwrite"): the victim is pre-created with a passkey and signed in on `/settings`; the attacker account is pre-created and logged out. The browsers share nothing but the CTF instance (each has its own **local** passkeys.tools store). Login verifier: Non-Discoverable (#4, username-first). The attacker:
   1. types `victim` at login, so the interceptor's request shows `allowCredentials` with the victim's credential ID, and copies it;
   2. pastes it in the passkeys.tools Keys tab → *Update Credential ID* onto their own `attacker | ES256` (stored as `profile2 | ES256`), then dismisses the login;
   3. logs in to their own account (no passkey → password fallback);
   4. registers a passkey: the interceptor's defaults now carry the victim's ID with the attacker's key → overwrite + flag;
   5. logs in as `victim`: the interceptor maps `allowCredentials` to the forged key automatically, but fills in the attacker's own **user handle** (stored for the profile), which the CTF rejects ("User handle does not match identified user", checked only if present). The attacker deletes that line from the response;
   6. the victim's own login then fails (lockout).
-- **`challenge-binding`** ("test: challenge binding"): both accounts are pre-created with a passkey each (registration verifier #29 "All Algorithms", so the website has no other bug) and signed in on `/settings`. Shared remote store like `full-story`, because the challenge travels through PASSKEYS-ATTACKER's shared **history**. Login verifier: Cross-Session Challenge (#17, discoverable). Steps:
+- **`challenge-binding`** ("Test: Challenge Binding"): both accounts are pre-created with a passkey each (registration verifier #29 "All Algorithms", so the website has no other bug) and signed in on `/settings`. Shared remote store like `full-story`, because the challenge travels through PASSKEYS-ATTACKER's shared **history**. Login verifier: Cross-Session Challenge (#17, discoverable). Steps:
   1. both log out (one step with tasks in both browsers, `focus: 'both'`);
   2. the victim starts a passkey login and clicks **Dismiss**: the website's challenge for the victim's session stays unused (the CTF keeps unused challenges in a global store for 10 minutes);
   3. the attacker starts a passkey login, keeps the attacker's own passkey and picks *Attacks → Challenge | Session Binding*, which puts the other profile's newest **dismissed** `get` challenge from the history into `clientDataJSON` and re-signs. The CTF accepts it and returns a reward. PASSKEYS-ATTACKER only takes history entries **younger than one minute**; the scenario treats a challenge as usable for 55 s, and when it went stale it latches `staleAt`, which un-completes step 2 so the presenter repeats it (the attack's error replaces the whole Attacks list, so the attacker has to Dismiss first).
