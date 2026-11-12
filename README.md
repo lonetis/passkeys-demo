@@ -33,18 +33,18 @@ You need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (
 curl -fsSL https://raw.githubusercontent.com/lonetis/passkeys-demo/main/install.sh | sh
 ```
 
-This downloads the stack into `~/passkeys-demo`, starts it, and prints the address: http://localhost:8080. The demos are only reachable from your machine, so no password is set. Run the same command again to update. To use another port or directory, see the installer section in `.env.example`.
+This downloads the stack into `/tmp/passkeys-demo`, starts it, and prints the address: http://localhost:8080. The demos are only reachable from your machine, so no password is set. Run the same command again to update. To use another port or directory, see the installer section in `.env.example`.
 
-Stop the demos:
+Stop the demos (works from any directory, also after `/tmp` was cleared):
 
 ```bash
-docker compose -f ~/passkeys-demo/docker-compose.yml down
+docker compose -p passkeys-demo stop
 ```
 
-Start them again with `docker compose -f ~/passkeys-demo/docker-compose.yml up -d`. To remove everything, including the images:
+Start them again with `docker compose -p passkeys-demo start`. To remove everything, including the images:
 
 ```bash
-docker compose -f ~/passkeys-demo/docker-compose.yml down --rmi all && rm -rf ~/passkeys-demo
+docker compose -p passkeys-demo down --rmi all && rm -rf /tmp/passkeys-demo
 ```
 
 ### Configuration
