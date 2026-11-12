@@ -63,6 +63,7 @@ Three scenarios ("versions"), each run as an independent **demo instance** on it
 │   └── entrypoint.sh            # Xvnc + socat + Chromium restart loop + managed policies
 ├── docker-compose.dev.yml       # Local builds, app src/public mounted, node --watch
 ├── docker-compose.prod.yml      # GHCR images
+├── install.sh                   # One-line installer: prod compose + minimal .env in ~/passkeys-demo
 └── .github/workflows/docker.yml # Builds and pushes both images to GHCR
 ```
 
@@ -128,6 +129,10 @@ Setup details worth knowing:
 - Celebration overlays cover the browser where it happened (flag and takeover: attacker, lockout: victim), below its header, so the "logged in as" status stays visible.
 - The stepper and landing page mark a `both` step with both role colors.
 - The landing page shows the demo cards (status refreshed every 3 s) and a "Try It on Your Own Machine" card (QR code + link to `PROJECT_URL`) in one grid. The demo cards sit in a `display: contents` wrapper, so re-rendering them leaves that card (and its image) alone.
+
+### Distribution
+
+- **One-line install** (`install.sh`, POSIX `sh`, piped from `raw.githubusercontent.com/.../main`): checks curl, Docker and the Compose plugin, downloads `docker-compose.prod.yml` as `docker-compose.yml` and `.env.example` into `PASSKEYS_DEMO_DIR`, writes a **minimal** `.env` only on the first install (`APP_BIND=127.0.0.1`, `APP_PORT`), pulls, `up -d --remove-orphans`, waits for `/healthz` and prints stop/start/update/uninstall commands. The minimal `.env` is deliberate: every other variable falls back to the defaults in `config.js` and the compose file, so a re-run (update) picks up new defaults such as a new demo in `DEMOS`, while the user's own edits to `.env` survive. Bound to localhost, the stack needs no password (the app logs a warning). The compose project name comes from the install directory (`passkeys-demo`), so do not run the installer with its default directory on a host whose production checkout is also named `passkeys-demo`.
 
 ## Conventions
 

@@ -20,9 +20,31 @@ Live, guided demos of passkey attacks from our paper *The State of Passkeys* (US
 - Flag-captured, account-takeover and victim-lockout moments, plus a takeaways slide
 - Keyboard and presenter-remote navigation (PageUp/PageDown, arrow keys, `F` for fullscreen)
 - Basic-auth protection; the browsers can only navigate to the demo sites
-- The landing page links to this repository with a QR code, so visitors can try it themselves
+- One-line install to run all demos on your own machine; the landing page links to this repository with a QR code, so visitors can try it themselves
 
 ## Getting Started
+
+### Try It on Your Own Machine
+
+You need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (Docker Desktop on macOS and Windows, there inside WSL) and about 4 GB of free memory. Then run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lonetis/passkeys-demo/main/install.sh | sh
+```
+
+This downloads the stack into `~/passkeys-demo`, starts it, and prints the address: http://localhost:8080. The demos are only reachable from your machine, so no password is set. Run the same command again to update. To use another port or directory, see the installer section in `.env.example`.
+
+Stop the demos:
+
+```bash
+docker compose -f ~/passkeys-demo/docker-compose.yml down
+```
+
+Start them again with `docker compose -f ~/passkeys-demo/docker-compose.yml up -d`. To remove everything, including the images:
+
+```bash
+docker compose -f ~/passkeys-demo/docker-compose.yml down --rmi all && rm -rf ~/passkeys-demo
+```
 
 ### Configuration
 

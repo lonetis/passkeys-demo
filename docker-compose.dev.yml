@@ -11,7 +11,7 @@ services:
       - challenge-binding-attacker
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8080}:8080"
     networks:
       - demo
     volumes:
