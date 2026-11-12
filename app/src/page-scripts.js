@@ -303,7 +303,13 @@ export function applyHighlights(targets) {
 
     if (!scrolledThisTick && document.documentElement.dataset.pkdemoScrolledTo !== key) {
       const outOfView = rect.top < 0 || rect.bottom > window.innerHeight;
-      if (outOfView) element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (outOfView && rect.height > window.innerHeight - 140) {
+        // Taller than the visible area (e.g. the interceptor's textareas): show its top, with
+        // room above for the tip. Centering it would hide its first lines, e.g. the challenge.
+        window.scrollBy({ top: rect.top - 80, behavior: 'smooth' });
+      } else if (outOfView) {
+        element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
       document.documentElement.dataset.pkdemoScrolledTo = key;
       scrolledThisTick = true;
     }

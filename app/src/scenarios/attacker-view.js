@@ -121,7 +121,7 @@ const copyCredentialIdTask = {
     await page.evaluate((id) => {
       const textarea = document.getElementById('interceptorRequestTextarea');
       const start = textarea.value.indexOf(id);
-      textarea.focus();
+      textarea.focus({ preventScroll: true });
       textarea.setSelectionRange(start, start + id.length);
     }, leakedId(state()));
     await sleep(SHOW_SELECTION_MS);

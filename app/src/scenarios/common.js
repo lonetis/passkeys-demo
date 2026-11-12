@@ -424,7 +424,7 @@ export function removeUserHandleTask(role, text, finished) {
         const textarea = document.getElementById('interceptorResponseTextarea');
         const match = new RegExp(pattern, 'm').exec(textarea.value);
         if (!match) return;
-        textarea.focus();
+        textarea.focus({ preventScroll: true });
         textarea.setSelectionRange(match.index, match.index + match[0].length);
       }, USER_HANDLE_LINE_PATTERN);
       await sleep(SHOW_SELECTION_MS);
