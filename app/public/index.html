@@ -18,7 +18,20 @@
         <p class="home-lead">Guided demos and tests in two real browsers running PASSKEYS-ATTACKER and the Fun with Flags and Passkeys CTF. Each one runs on its own pair of browsers, so all can be used at the same time.</p>
       </div>
     </header>
-    <section class="demo-cards" id="demo-cards" aria-live="polite"></section>
+    <section class="demo-cards">
+      <div class="demo-card-list" id="demo-cards" aria-live="polite"></div>
+      <article class="try-card" id="try-card" hidden>
+        <h2>Try It on Your Own Machine</h2>
+        <div class="try-body">
+          <img class="try-qr" id="try-qr" src="/project-qr.svg" alt="" width="148" height="148">
+          <div class="try-text">
+            <p>Run all demos yourself: one command sets up the whole stack. All you need is Docker.</p>
+            <a class="try-link" id="try-link" href="#" target="_blank" rel="noopener"></a>
+            <p class="try-note">Scan the code or open the link: the README has the one-line install and how to stop it.</p>
+          </div>
+        </div>
+      </article>
+    </section>
     <p class="home-note">Tip: open a version, press <b>F</b> for fullscreen, and use PageUp/PageDown or the arrow keys to move between steps.</p>
   </main>
 </body>

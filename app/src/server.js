@@ -6,6 +6,7 @@ import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { createBasicAuth } from './auth.js';
 import { createLogger } from './log.js';
+import { qrSvg } from './qr.js';
 import { bridgeVnc } from './vnc-proxy.js';
 import { BrowserController } from './browser-controller.js';
 import { DemoController } from './demo.js';
@@ -28,6 +29,12 @@ for (const id of config.demos) {
 }
 
 const catalog = config.demos.map((id) => ({ id, title: scenarios.get(id).title }));
+const project = {
+  url: config.projectUrl,
+  /** The URL as people would type it: "github.com/owner/repo". */
+  label: config.projectUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''),
+};
+const projectQrSvg = qrSvg(config.projectUrl);
 /**
  * passkeys.tools shows profile names as roles. With separate key stores, each browser also has
  * keys for the other profile that belong to no one in the story, so they are hidden there.
@@ -57,6 +64,8 @@ app.disable('x-powered-by');
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.use(auth.middleware);
 app.get('/api/demos', (_req, res) => res.json([...demos.values()].map((demo) => demo.summary())));
+app.get('/api/project', (_req, res) => res.json(project));
+app.get('/project-qr.svg', (_req, res) => res.type('image/svg+xml').send(projectQrSvg));
 app.use('/vendor', express.static(path.join(appRoot, 'dist'), { maxAge: '1h' }));
 app.use(express.static(publicDir));
 app.get('/:demoId', (req, res, next) => {

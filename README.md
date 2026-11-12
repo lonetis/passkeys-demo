@@ -20,6 +20,7 @@ Live, guided demos of passkey attacks from our paper *The State of Passkeys* (US
 - Flag-captured, account-takeover and victim-lockout moments, plus a takeaways slide
 - Keyboard and presenter-remote navigation (PageUp/PageDown, arrow keys, `F` for fullscreen)
 - Basic-auth protection; the browsers can only navigate to the demo sites
+- The landing page links to this repository with a QR code, so visitors can try it themselves
 
 ## Getting Started
 

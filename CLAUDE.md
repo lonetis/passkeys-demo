@@ -49,6 +49,7 @@ Three scenarios ("versions"), each run as an independent **demo instance** on it
 │       ├── page-scripts.js      # Functions evaluated inside the browsers (snapshots, highlights, user-action reports)
 │       ├── setup.js             # Setup building blocks composed by the scenarios' prepare()
 │       ├── passkeys-tools-store.js # Minimal db.passkeys.tools client (secret generation, key listing)
+│       ├── qr.js                # QR code (SVG) of PROJECT_URL for the landing page
 │       ├── demo.js              # DemoController: one demo instance (state machine, facts, DB model, tick, autopilot)
 │       ├── scenarios/
 │       │   ├── index.js         # Registry of scenarios by ID
@@ -74,7 +75,7 @@ Viewer ──HTTP/WS──▶ app ─┬─ demo "full-story"        ──CDP/V
 ```
 
 - **Demo instances**: `DEMOS` lists scenario IDs; for each, `server.js` creates a `DemoController` with two `BrowserController`s at hosts from `BROWSER_HOST_PATTERN` (`{demo}-{role}`, matching the compose service names). Instances are fully independent (own CTF instance, own reset, own WebSocket clients).
-- **Routes**: `/` landing page; `/<demo-id>` serves `demo.html`, which reads its demo ID from the path; `/api/demos` summaries; WebSockets `/ws/<demo-id>` (JSON state push, UI actions back) and `/vnc/<demo-id>/<role>`.
+- **Routes**: `/` landing page; `/<demo-id>` serves `demo.html`, which reads its demo ID from the path; `/api/demos` summaries; `/api/project` (`PROJECT_URL` and its display label) and `/project-qr.svg` (generated once at startup with `qrcode-generator`) for the landing page's "Try It on Your Own Machine" card; WebSockets `/ws/<demo-id>` (JSON state push, UI actions back) and `/vnc/<demo-id>/<role>`. `/healthz` is the only route without basic auth.
 - **Browsers**: each browser container runs `Xvnc` (display + VNC server), `socat` to expose Chromium's localhost-only DevTools port 9222 as 9223, and Chromium in a loop. When Chromium exits, the loop wipes the profile and starts it again. **Reset** relies on this: the app sends `Browser.close` over CDP and reconnects to the fresh instance, so the extension is effectively reinstalled. The VNC stream survives resets. The entrypoint removes stale X locks, because a restarted container keeps `/tmp/.X0-lock` and Xvnc would refuse to start.
 - **CDP addressing**: Chromium rejects DevTools HTTP requests whose `Host` header is a hostname, so the app resolves the service name to an IPv4 address and connects by IP.
 - **Skins and lockdown**: `entrypoint.sh` writes `/etc/chromium/policies/managed/demo.json` from env: `BrowserThemeColor` (no theme-install infobar, unlike a theme extension), no password manager or translate prompts, popups allowed (the extension opens its interceptor via `window.open` after an async fetch), and `URLBlocklist ["*"]` + `URLAllowlist` (navigations only; subresources such as flag images still load).
@@ -126,6 +127,7 @@ Setup details worth knowing:
 - noVNC uses `scaleViewport`. Both panels have equal width, because the 16:10 screens are height-bound at 1080p and a wider active panel would only add letterboxing. The active browser gets a glow and a "Your turn" chip; the other one is dimmed.
 - Celebration overlays cover the browser where it happened (flag and takeover: attacker, lockout: victim), below its header, so the "logged in as" status stays visible.
 - The stepper and landing page mark a `both` step with both role colors.
+- The landing page shows the demo cards (status refreshed every 3 s) and a "Try It on Your Own Machine" card (QR code + link to `PROJECT_URL`) in one grid. The demo cards sit in a `display: contents` wrapper, so re-rendering them leaves that card (and its image) alone.
 
 ## Conventions
 

@@ -26,6 +26,19 @@ function readUrl(name, fallback) {
   }
 }
 
+/** A full http(s) URL (unlike readUrl, which keeps only the origin). */
+function readLink(name, fallback) {
+  const raw = readString(name, fallback);
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`Environment variable ${name} must be a URL, got "${raw}"`);
+  }
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error(`Environment variable ${name} must be an http(s) URL, got "${raw}"`);
+  return url.href;
+}
+
 function readList(name, fallback) {
   return readString(name, fallback).split(',').map((item) => item.trim()).filter(Boolean);
 }
@@ -42,6 +55,8 @@ export const config = Object.freeze({
   }),
   /** Scenario IDs to run, each on its own pair of browsers. */
   demos: Object.freeze(readList('DEMOS', 'full-story,attacker-view,challenge-binding')),
+  /** Where people get the project to run it themselves (landing page link and QR code). */
+  projectUrl: readLink('PROJECT_URL', 'https://github.com/lonetis/passkeys-demo'),
   learningUrl: readUrl('LEARNING_URL', 'https://learning.passkeys.tools'),
   passkeysToolsUrl: readUrl('PASSKEYS_TOOLS_URL', 'https://passkeys.tools'),
   passkeysToolsDbUrl: readUrl('PASSKEYS_TOOLS_DB_URL', 'https://db.passkeys.tools'),

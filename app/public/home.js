@@ -30,4 +30,21 @@ async function refresh() {
   }
 }
 
+/** The "Try It on Your Own Machine" card: link and QR code to the project. */
+async function showProject() {
+  try {
+    const response = await fetch('/api/project', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const { url, label } = await response.json();
+    const link = document.getElementById('try-link');
+    link.href = url;
+    link.textContent = label;
+    document.getElementById('try-qr').alt = `QR code for ${label}`;
+    document.getElementById('try-card').hidden = false;
+  } catch (error) {
+    console.warn('Could not load the project link:', error);
+  }
+}
+
 refresh();
+showProject();
