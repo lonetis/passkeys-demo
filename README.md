@@ -5,8 +5,8 @@ Live, guided demos of passkey attacks from our paper *The State of Passkeys* (US
 ## Features
 
 - Three versions, each on its own pair of browsers, so all can run at the same time:
-  - **Full story** (`/full-story`): both people start from scratch. The victim signs up and registers a passkey, then the attacker signs up, overwrites it with the attacker's key, logs in as the victim, and the victim is locked out.
-  - **Attacker's view** (`/attacker-view`): the victim is already signed in with a passkey. Knowing only the username, the attacker learns the victim's credential ID from the login page (`allowCredentials`), puts it on their own key, and takes over the account.
+  - **demo: account takeover** (`/full-story`): both people start from scratch. The victim signs up and registers a passkey, then the attacker signs up, overwrites it with the attacker's key, logs in as the victim, and the victim is locked out.
+  - **test: session overwrite** (`/attacker-view`): the victim is already signed in with a passkey. Knowing only the username, the attacker learns the victim's credential ID from the login page (`allowCredentials`), puts it on their own key, and takes over the account.
   - **test: challenge binding** (`/challenge-binding`): both people are signed in with their own passkeys and log out. The victim starts a passkey login and cancels it; the attacker logs in with the victim's unused challenge, and the website accepts a challenge it issued to another session.
 - Real, interactive Chromium browsers streamed into the page (noVNC), each with its own skin color
 - PASSKEYS-ATTACKER's profile keys are labeled by role in the demo browsers (`victim | ES256`, `attacker | ES256`) instead of `profile1`/`profile2`

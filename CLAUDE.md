@@ -9,10 +9,10 @@ Guided, live demos of passkey attacks from the paper *The State of Passkeys* (US
 - **Credential Overwrite → Account Takeover** (§6.2.2 "Swap credid", §6.2.7 credential ID leak via `allowCredentials`; WebAuthn §7.1.26; CTF verifier #60 "Cred Overwrite").
 - **Challenge session binding** (§6.2.4, CWE-384; WebAuthn §7.2.11; CTF verifier #17 "Cross-Session Challenge").
 
-Three scenarios ("versions"), each run as an independent **demo instance** on its own pair of browsers:
+Three scenarios ("versions"), each run as an independent **demo instance** on its own pair of browsers. Display titles (`title`) are lowercase on purpose and listed in `DEMOS` order:
 
-- **`full-story`**: both people start from scratch (sign-ups, the victim's passkey, overwrite, takeover, lockout). Both browsers share one remote passkeys.tools key store, so the victim's credential ID shows up in the attacker's interceptor as `victim | ES256`. Login verifier: Discoverable (#2).
-- **`attacker-view`**: the victim is pre-created with a passkey and signed in on `/settings`; the attacker account is pre-created and logged out. The browsers share nothing but the CTF instance (each has its own **local** passkeys.tools store). Login verifier: Non-Discoverable (#4, username-first). The attacker:
+- **`full-story`** ("demo: account takeover"): both people start from scratch (sign-ups, the victim's passkey, overwrite, takeover, lockout). Both browsers share one remote passkeys.tools key store, so the victim's credential ID shows up in the attacker's interceptor as `victim | ES256`. Login verifier: Discoverable (#2).
+- **`attacker-view`** ("test: session overwrite"): the victim is pre-created with a passkey and signed in on `/settings`; the attacker account is pre-created and logged out. The browsers share nothing but the CTF instance (each has its own **local** passkeys.tools store). Login verifier: Non-Discoverable (#4, username-first). The attacker:
   1. types `victim` at login, so the interceptor's request shows `allowCredentials` with the victim's credential ID, and copies it;
   2. pastes it in the passkeys.tools Keys tab → *Update Credential ID* onto their own `attacker | ES256` (stored as `profile2 | ES256`), then dismisses the login;
   3. logs in to their own account (no passkey → password fallback);
