@@ -77,7 +77,13 @@ function renderVersions() {
   $('#headline').innerHTML = state.demo.headline;
   $('#versions').innerHTML = state.demos.map((demo) => `
     <a class="version-link${demo.id === state.demo.id ? ' active' : ''}" href="/${encodeURIComponent(demo.id)}"
-      ${demo.id === state.demo.id ? 'aria-current="page"' : ''}>${esc(demo.title)}</a>`).join('');
+      title="${esc(demo.title)}" ${demo.id === state.demo.id ? 'aria-current="page"' : ''}>${versionLabel(demo.title)}</a>`).join('');
+}
+
+/** "Test: Challenge Binding" with the kind in its own span, which laptop screens hide. */
+function versionLabel(title) {
+  const [, kind, name] = /^([^:]+: )?(.*)$/.exec(title);
+  return `${kind ? `<span class="version-kind">${esc(kind)}</span>` : ''}${esc(name)}`;
 }
 
 function renderStepper() {
@@ -455,18 +461,19 @@ function renderCelebration() {
 let resetArmedTimer = null;
 
 function armOrReset(button) {
+  const label = button.querySelector('.btn-label');
   if (button.dataset.armed === 'true') {
     clearTimeout(resetArmedTimer);
     button.dataset.armed = 'false';
-    button.textContent = '⟲ Reset demo';
+    label.textContent = 'Reset demo';
     send('reset');
     return;
   }
   button.dataset.armed = 'true';
-  button.textContent = 'Click again to reset';
+  label.textContent = 'Click again to reset';
   resetArmedTimer = setTimeout(() => {
     button.dataset.armed = 'false';
-    button.textContent = '⟲ Reset demo';
+    label.textContent = 'Reset demo';
   }, 3000);
 }
 

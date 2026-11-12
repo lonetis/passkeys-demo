@@ -84,6 +84,9 @@ code {
   font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 h1 {
   margin: 0;
@@ -122,6 +125,7 @@ a.brand-mark:hover { background: var(--accent); }
 
 .stepper {
   display: flex;
+  flex: none;
   gap: 6px;
   min-width: 0;
   margin-left: auto;
@@ -653,6 +657,15 @@ a.brand-mark:hover { background: var(--accent); }
   .step-pill:not(.active) .label { display: none; }
   .step-pill:not(.active) { padding: 5px; }
 }
+/* Laptop widths: the headline and version switch need the room; the step card names the step. */
+@media (max-width: 1500px) {
+  .stepper { gap: 3px; }
+  .step-pill .label { display: none; }
+  .step-pill { padding: 3px; }
+  /* Reset shows its label only while asking for the confirming second click. */
+  #reset-btn { padding-left: 12px; padding-right: 12px; }
+  #reset-btn:not([data-armed="true"]) .btn-label { display: none; }
+}
 
 /* Laptop screens: a denser guide. The column headers say "ID"/"key", so chips drop the word. */
 @media (max-width: 1500px), (max-height: 950px) {
@@ -680,6 +693,8 @@ a.brand-mark:hover { background: var(--accent); }
   /* The challenge test's passkeys are only the backdrop; the challenges need the room. */
   .passkey-summary { display: none; }
   .version-link { padding: 4px 9px; font-size: 12px; }
+  /* Four versions only fit next to the headline without their "Demo:"/"Test:" prefix. */
+  .version-kind { display: none; }
   .topbar { gap: 12px; }
   h1 { font-size: 18px; }
 }
