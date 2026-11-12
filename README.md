@@ -5,8 +5,8 @@ Live, guided demos of passkey attacks from our paper *The State of Passkeys* (US
 ## Features
 
 - Three versions, each on its own pair of browsers, so all can run at the same time:
-  - **Demo: Account Takeover** (`/full-story`): both people start from scratch. The victim signs up and registers a passkey, then the attacker signs up, overwrites it with the attacker's key, logs in as the victim, and the victim is locked out.
-  - **Test: Session Overwrite** (`/attacker-view`): the victim is already signed in with a passkey. Knowing only the username, the attacker learns the victim's credential ID from the login page (`allowCredentials`), puts it on their own key, and takes over the account.
+  - **Demo: Account Takeover** (`/attacker-view`): the victim is already signed in with a passkey. Knowing only the username, the attacker learns the victim's credential ID from the login page (`allowCredentials`), puts it on their own key, and takes over the account.
+  - **Test: Session Overwrite** (`/full-story`): both people start from scratch. The victim signs up and registers a passkey, then the attacker signs up, overwrites it with the attacker's key, logs in as the victim, and the victim is locked out.
   - **Test: Challenge Binding** (`/challenge-binding`): both people are signed in with their own passkeys and log out. The attacker starts a passkey login, copies its challenge and cancels it; the victim's login gets the attacker's unused challenge pasted in, and the website accepts a challenge it issued to another session (session fixation).
 - Real, interactive Chromium browsers streamed into the page (noVNC), each with its own skin color
 - PASSKEYS-ATTACKER's profile keys are labeled by role in the demo browsers (`victim | ES256`, `attacker | ES256`) instead of `profile1`/`profile2`
@@ -78,7 +78,7 @@ Put the app behind a TLS-terminating reverse proxy; it serves plain HTTP and Web
 
 ## Presenting
 
-- Open the site and pick a version on the start page: `/full-story`, `/attacker-view` or `/challenge-binding`. The switch in the top bar changes versions; each keeps its own state.
+- Open the site and pick a version on the start page: `/attacker-view`, `/full-story` or `/challenge-binding`. The switch in the top bar changes versions; each keeps its own state.
 - Open the page in fullscreen (`F`) on a large screen. It is designed for 1920×1080 and works on laptop screens.
 - The intro step is shown while the browsers are being prepared; **Start the demo** becomes available once setup is done (about 10 seconds).
 - Click directly into the browsers to perform each step yourself, or press **▶ Do it for me**. Highlights in the browsers show where to click next.

@@ -216,7 +216,7 @@ const steps = [
     short: 'Intro',
     marker: 'i',
     focus: null,
-    kicker: 'Test · Session Overwrite',
+    kicker: 'Demo · Account Takeover',
     title: 'From a username to account takeover',
     lead: 'The attacker knows only the victim’s username.',
     points: [
@@ -375,7 +375,7 @@ const diagram = [
 
 export default {
   id: 'attacker-view',
-  title: 'Test: Session Overwrite',
+  title: 'Demo: Account Takeover',
   headline: 'Credential Overwrite <span class="arrow">→</span> Account Takeover',
   summary: 'The victim is already signed in with a passkey. The attacker learns the victim’s credential ID from the login page, overwrites the victim’s passkey, takes over the account, and the victim is locked out.',
   presetNames: { victim: VICTIM_NAME, attacker: ATTACKER_NAME },

@@ -61,7 +61,7 @@ const steps = [
     short: 'Intro',
     marker: 'i',
     focus: null,
-    kicker: 'Demo · Account Takeover',
+    kicker: 'Test · Session Overwrite',
     title: 'Credential Overwrite → Account Takeover',
     lead: 'The attacker takes over the victim’s account by replacing the victim’s passkey key on the website.',
     points: [
@@ -219,7 +219,7 @@ const diagram = [
 
 export default {
   id: 'full-story',
-  title: 'Demo: Account Takeover',
+  title: 'Test: Session Overwrite',
   headline: 'Credential Overwrite <span class="arrow">→</span> Account Takeover',
   summary: 'Both people start from scratch: the victim signs up and registers a passkey, the attacker overwrites it, takes over the account, and the victim is locked out.',
   presetNames: null,

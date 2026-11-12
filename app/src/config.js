@@ -54,7 +54,7 @@ export const config = Object.freeze({
     password: readString('DEMO_PASSWORD', ''),
   }),
   /** Scenario IDs to run, each on its own pair of browsers. */
-  demos: Object.freeze(readList('DEMOS', 'full-story,attacker-view,challenge-binding')),
+  demos: Object.freeze(readList('DEMOS', 'attacker-view,full-story,challenge-binding')),
   /** Where people get the project to run it themselves (landing page link and QR code). */
   projectUrl: readLink('PROJECT_URL', 'https://github.com/lonetis/passkeys-demo'),
   learningUrl: readUrl('LEARNING_URL', 'https://learning.passkeys.tools'),
