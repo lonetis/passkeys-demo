@@ -220,8 +220,11 @@ const diagram = [
 export default {
   id: 'full-story',
   title: 'Full story',
+  headline: 'Credential Overwrite <span class="arrow">→</span> Account Takeover',
   summary: 'Both people start from scratch: the victim signs up and registers a passkey, the attacker overwrites it, takes over the account, and the victim is locked out.',
   presetNames: null,
+  loginCheck: 'signature',
+  flagDetail: 'the victim’s passkey now holds the attacker’s key.',
   setupStages: SETUP_STAGES,
   prepare,
   steps,

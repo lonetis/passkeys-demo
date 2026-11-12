@@ -376,9 +376,12 @@ const diagram = [
 export default {
   id: 'attacker-view',
   title: 'Attacker’s view',
+  headline: 'Credential Overwrite <span class="arrow">→</span> Account Takeover',
   summary: 'The victim is already signed in with a passkey. The attacker learns the victim’s credential ID from the login page, overwrites the victim’s passkey, takes over the account, and the victim is locked out.',
   presetNames: { victim: VICTIM_NAME, attacker: ATTACKER_NAME },
   separateKeyStores: true,
+  loginCheck: 'signature',
+  flagDetail: 'the victim’s passkey now holds the attacker’s key.',
   setupStages: SETUP_STAGES,
   prepare,
   observe,

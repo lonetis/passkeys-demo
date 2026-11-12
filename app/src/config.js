@@ -41,7 +41,7 @@ export const config = Object.freeze({
     password: readString('DEMO_PASSWORD', ''),
   }),
   /** Scenario IDs to run, each on its own pair of browsers. */
-  demos: Object.freeze(readList('DEMOS', 'full-story,attacker-view')),
+  demos: Object.freeze(readList('DEMOS', 'full-story,attacker-view,challenge-binding')),
   learningUrl: readUrl('LEARNING_URL', 'https://learning.passkeys.tools'),
   passkeysToolsUrl: readUrl('PASSKEYS_TOOLS_URL', 'https://passkeys.tools'),
   passkeysToolsDbUrl: readUrl('PASSKEYS_TOOLS_DB_URL', 'https://db.passkeys.tools'),
@@ -50,6 +50,8 @@ export const config = Object.freeze({
     registration: readInt('REGISTRATION_VERIFIER_ID', 60),
     discoverableLogin: readInt('DISCOVERABLE_LOGIN_VERIFIER_ID', 2),
     usernameFirstLogin: readInt('USERNAME_FIRST_LOGIN_VERIFIER_ID', 4),
+    standardRegistration: readInt('STANDARD_REGISTRATION_VERIFIER_ID', 29),
+    crossSessionLogin: readInt('CROSS_SESSION_LOGIN_VERIFIER_ID', 17),
   }),
   /** "Do it for me": pause before each action, while the highlight shows where it happens. */
   autopilotPauseMs: readInt('AUTOPILOT_PAUSE_MS', 2000),

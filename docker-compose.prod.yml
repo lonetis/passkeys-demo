@@ -6,6 +6,8 @@ services:
       - full-story-attacker
       - attacker-view-victim
       - attacker-view-attacker
+      - challenge-binding-victim
+      - challenge-binding-attacker
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8080"
@@ -51,6 +53,30 @@ services:
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-passkeys.tools}
 
   attacker-view-attacker:
+    image: ghcr.io/lonetis/passkeys-demo-browser:latest
+    restart: unless-stopped
+    shm_size: "1gb"
+    networks:
+      - demo
+    environment:
+      - THEME_COLOR=${ATTACKER_THEME_COLOR:-#C62828}
+      - SCREEN_WIDTH=${SCREEN_WIDTH:-1152}
+      - SCREEN_HEIGHT=${SCREEN_HEIGHT:-720}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-passkeys.tools}
+
+  challenge-binding-victim:
+    image: ghcr.io/lonetis/passkeys-demo-browser:latest
+    restart: unless-stopped
+    shm_size: "1gb"
+    networks:
+      - demo
+    environment:
+      - THEME_COLOR=${VICTIM_THEME_COLOR:-#F9A825}
+      - SCREEN_WIDTH=${SCREEN_WIDTH:-1152}
+      - SCREEN_HEIGHT=${SCREEN_HEIGHT:-720}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-passkeys.tools}
+
+  challenge-binding-attacker:
     image: ghcr.io/lonetis/passkeys-demo-browser:latest
     restart: unless-stopped
     shm_size: "1gb"

@@ -60,7 +60,7 @@ function renderOnce(key, inputs, draw) {
 function render() {
   const ready = state.phase === 'ready';
   const step = state.steps[state.stepIndex];
-  $('#stage').dataset.focus = ready && step.focus ? step.focus : 'none';
+  $('#stage').dataset.focus = ready && step.acting ? step.acting : 'none';
 
   renderOnce('versions', [state.demo, state.demos], renderVersions);
   renderOnce('stepper', [state.phase, state.stepIndex, state.steps.map((s) => [s.short, s.marker, s.focus, s.complete])], renderStepper);
@@ -68,12 +68,13 @@ function render() {
   renderOnce('setup', [state.phase, state.setup], renderSetup);
   renderOnce('step', [state.phase, state.stepIndex, step, state.notice, state.autopilotRunning], () => renderStep(step));
   renderOnce('diagram', [state.diagram, state.stepIndex, state.steps.map((s) => [s.id, s.marker, s.complete, s.tasks.length])], renderDiagram);
-  renderOnce('db', [state.passkeys, state.lastLogin], renderDatabase);
+  renderOnce('db', [state.demo.loginCheck, state.passkeys, state.sessions, state.lastLogin], renderDatabase);
   renderCelebration();
 }
 
 function renderVersions() {
-  document.title = `${state.demo.title} · Passkey Takeover Demo`;
+  document.title = `${state.demo.title} · Passkey Demos`;
+  $('#headline').innerHTML = state.demo.headline;
   $('#versions').innerHTML = state.demos.map((demo) => `
     <a class="version-link${demo.id === state.demo.id ? ' active' : ''}" href="/${encodeURIComponent(demo.id)}"
       ${demo.id === state.demo.id ? 'aria-current="page"' : ''}>${esc(demo.title)}</a>`).join('');
@@ -119,7 +120,7 @@ function renderStep(step) {
   const isFirst = state.stepIndex === 0;
   const isLast = state.stepIndex === state.steps.length - 1;
   const hasTasks = step.tasks.length > 0;
-  card.dataset.focus = step.focus ?? 'none';
+  card.dataset.focus = step.acting ?? step.focus ?? 'none';
 
   const points = step.points.length ? `<ul class="step-points">${step.points.map((p) => `<li>${p}</li>`).join('')}</ul>` : '';
   const tasks = hasTasks ? `<ol class="tasks">${step.tasks.map((task) => `
@@ -277,7 +278,31 @@ function partyChip(owner, thing, extraClass = '') {
   return `<span class="party-chip ${party ? owner : ''} ${extraClass}">${label}</span>`;
 }
 
+/** Start of a challenge, enough to recognize it again. */
+const shortChallenge = (challenge) => `${challenge.slice(0, 6)}…`;
+
 function renderDatabase() {
+  const challengeCheck = state.demo.loginCheck === 'challenge';
+  $('#passkey-table').hidden = challengeCheck;
+  $('#passkey-summary').hidden = !challengeCheck;
+  $('#sessions').hidden = !challengeCheck;
+  if (challengeCheck) {
+    renderPasskeySummary();
+    renderSessions();
+    renderChallengeCheck();
+  } else {
+    renderPasskeys();
+    renderSignatureCheck();
+  }
+}
+
+/** One line instead of the table, when the passkeys are only the backdrop (challenge test). */
+function renderPasskeySummary() {
+  const chips = state.passkeys.map((row) => partyChip(row.accountRole, 'passkey')).join(' ');
+  $('#passkey-summary').innerHTML = `<span class="summary-label">🔑 Passkeys</span> ${chips || '<span class="unused">none yet</span>'}`;
+}
+
+function renderPasskeys() {
   $('#db-rows').innerHTML = state.passkeys.map((row) => `
     <tr class="${row.overwritten ? 'overwritten' : ''}">
       <td><span class="account-name">${PARTY[row.accountRole]?.icon ?? ''} ${esc(row.account)}</span></td>
@@ -286,7 +311,10 @@ function renderDatabase() {
         ? `${partyChip(row.previousKeyOwner, 'key', 'replaced')}<span class="replacement"><span class="replaced-arrow" aria-label="replaced by">→</span>${partyChip(row.keyOwner, 'key')}</span>`
         : partyChip(row.keyOwner, 'key')}</span></td>
     </tr>`).join('') || '<tr class="db-empty"><td colspan="3">No passkeys registered yet.</td></tr>';
+}
 
+function renderSignatureCheck() {
+  $('#login-check-title').innerHTML = '<span aria-hidden="true">🔏</span> Login: signature check';
   const login = state.lastLogin;
   if (!login) {
     $('#login-check').innerHTML = '<p class="login-empty">At login, the website checks the browser’s signature with the stored public key.</p>';
@@ -305,6 +333,43 @@ function renderDatabase() {
     ${result}`;
 }
 
+/** The website's view of the login sessions: which challenge it issued to whom, and who used it. */
+function renderSessions() {
+  const rows = ROLES.filter((role) => state.sessions[role]).map((role) => {
+    const { challenge, usedBy } = state.sessions[role];
+    const used = usedBy
+      ? `<span class="used-by${usedBy === role ? '' : ' foreign'}">${PARTY[usedBy].icon} ${usedBy === role ? 'own login' : `${PARTY[usedBy].name}<span class="chip-thing"> login</span>`}</span>`
+      : '<span class="unused">— unused</span>';
+    return `<tr>
+      <td>${partyChip(role, 'session')}</td>
+      <td><code class="challenge" title="${esc(challenge)}">${esc(shortChallenge(challenge))}</code></td>
+      <td>${used}</td>
+    </tr>`;
+  });
+  $('#session-rows').innerHTML = rows.join('') || '<tr class="db-empty"><td colspan="3">No passkey login started yet.</td></tr>';
+}
+
+function renderChallengeCheck() {
+  $('#login-check-title').innerHTML = '<span aria-hidden="true">🎲</span> Login: challenge check';
+  const login = state.lastLogin;
+  if (!login) {
+    $('#login-check').innerHTML = '<p class="login-empty">At login, the website should only accept the challenge it issued to this session.</p>';
+    return;
+  }
+  const match = login.challengeSession === login.role;
+  let result = `<span class="sig-result fail">✗ Login failed: ${esc(login.error)}</span>`;
+  if (login.ok && match) result = `<span class="sig-result ok">✓ Own challenge → logged in as <b>${esc(login.user)}</b></span>`;
+  else if (login.ok) result = `<span class="sig-result bad">⚠ Accepted anyway → logged in as <b>${esc(login.user)}</b></span>`;
+  else if (!match) result = '<span class="sig-result ok">✓ Rejected: challenge of another session</span>';
+  $('#login-check').innerHTML = `
+    <div class="sig-flow">
+      <div class="sig-col"><span class="sig-caption">Browser signed</span>${partyChip(login.challengeSession, 'challenge')}</div>
+      <span class="sig-op ${match ? 'ok' : 'fail'}" title="${match ? 'matches' : 'does not match'}">${match ? '=' : '≠'}</span>
+      <div class="sig-col"><span class="sig-caption">Session expects</span>${partyChip(login.role, 'challenge')}</div>
+    </div>
+    ${result}`;
+}
+
 function celebrationMarkup(celebration) {
   const victim = esc(state.names.victim ?? 'victim');
   switch (celebration.kind) {
@@ -312,7 +377,7 @@ function celebrationMarkup(celebration) {
       return `<div class="celebration-card attacker">
         <div class="celebration-title">🚩 Flag captured!</div>
         ${celebration.imageUrl ? `<img class="celebration-flag" src="${esc(celebration.imageUrl)}" alt="${esc(celebration.title)}">` : ''}
-        <div class="celebration-text"><b>${esc(celebration.country)}</b> — the CTF detected the exploit: the victim’s passkey now holds the attacker’s key.</div>
+        <div class="celebration-text"><b>${esc(celebration.country)}</b> — the CTF detected the exploit: ${esc(celebration.detail ?? '')}</div>
         <div class="celebration-hint">click to close</div></div>`;
     case 'takeover':
       return `<div class="celebration-card attacker">

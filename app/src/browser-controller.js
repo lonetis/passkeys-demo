@@ -11,6 +11,15 @@ const POLL_INTERVAL_MS = 300;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The challenge inside a WebAuthn response's clientDataJSON (base64url), or null. */
+function signedChallenge(credential) {
+  try {
+    return JSON.parse(Buffer.from(credential.response.clientDataJSON, 'base64url').toString('utf8')).challenge ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Remote-controls one demo browser (a browser container) over the Chrome DevTools Protocol.
  *
@@ -18,8 +27,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  *  - "report" ({ type: 'send', op, credentialId, key, userHandle }) when "Send" is clicked in
  *    the PASSKEYS-ATTACKER interceptor, captured synchronously so the selection is exact;
  *    ({ type: 'copy', text }) when text is copied in any page.
- *  - "passkey-result" ({ op, ok, status, credentialId, body }) for every registration /
- *    authentication verification answered by the CTF website.
+ *  - "challenge-issued" ({ op, challenge }) whenever the CTF website hands this browser's
+ *    session a registration / authentication challenge.
+ *  - "passkey-result" ({ op, ok, status, credentialId, challenge, body }) for every
+ *    registration / authentication verification answered by the CTF website; `challenge` is
+ *    the one the browser signed (from clientDataJSON).
  *  - "disconnected" when the CDP connection drops unexpectedly.
  */
 export class BrowserController extends EventEmitter {
@@ -119,24 +131,34 @@ export class BrowserController extends EventEmitter {
     page.on('response', async (response) => {
       const url = new URL(response.url());
       if (url.origin !== this.learningUrl) return;
-      const op = url.pathname === '/api/passkey/registration/verify' ? 'create'
-        : url.pathname === '/api/passkey/authentication/verify' ? 'get'
-          : null;
-      if (!op) return;
+      const match = /^\/api\/passkey\/(registration|authentication)\/(options|verify)$/.exec(url.pathname);
+      if (!match) return;
+      const op = match[1] === 'registration' ? 'create' : 'get';
       let body = null;
       try {
         body = await response.json();
       } catch {
         body = null;
       }
-      let credentialId = null;
-      try {
-        // The CTF posts { credential: <WebAuthn response JSON>, ... }.
-        credentialId = response.request().postDataJSON()?.credential?.id ?? null;
-      } catch {
-        credentialId = null;
+      if (match[2] === 'options') {
+        if (response.ok() && body?.options?.challenge) this.emit('challenge-issued', { op, challenge: body.options.challenge });
+        return;
       }
-      this.emit('passkey-result', { op, ok: response.ok() && body?.verified === true, status: response.status(), credentialId, body });
+      // The CTF posts { credential: <WebAuthn response JSON>, ... }.
+      let credential = null;
+      try {
+        credential = response.request().postDataJSON()?.credential ?? null;
+      } catch {
+        credential = null;
+      }
+      this.emit('passkey-result', {
+        op,
+        ok: response.ok() && body?.verified === true,
+        status: response.status(),
+        credentialId: credential?.id ?? null,
+        challenge: signedChallenge(credential),
+        body,
+      });
     });
   }
 

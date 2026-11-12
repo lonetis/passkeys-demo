@@ -19,8 +19,12 @@ function emptyFacts(presetNames) {
     lastSend: { victim: null, attacker: null },
     /** Last text copied to the clipboard in each browser. */
     lastCopy: { victim: null, attacker: null },
+    /** Last "Dismiss" click in each browser's interceptor: { op, challenge, at }. */
+    lastDismiss: { victim: null, attacker: null },
     victimPasskey: null,
     overwrite: null,
+    /** A login the CTF rewarded with a flag (a login verifier's exploit): { role, reward }. */
+    loginFlag: null,
     takeover: null,
     lockout: null,
     /**
@@ -28,7 +32,15 @@ function emptyFacts(presetNames) {
      * records whose credential ID and whose public key it holds (victim/attacker).
      */
     passkeys: new Map(),
-    /** Last passkey login: whose key signed it, whose key the website checked it with. */
+    /**
+     * Model of the website's login sessions, one per browser: the challenge the website
+     * issued to it for a passkey login, and whose login used that challenge (if any).
+     */
+    sessions: { victim: null, attacker: null },
+    /**
+     * Last passkey login: whose key signed it, whose key the website checked it with, and
+     * whose session issued the challenge it signed.
+     */
     lastLogin: null,
     /** Facts a scenario latches itself in its observe() hook. */
     scenario: {},
@@ -86,6 +98,7 @@ export class DemoController extends EventEmitter {
     for (const role of ROLES) {
       const browser = browsers[role];
       browser.on('report', (payload) => this.onReport(role, payload));
+      browser.on('challenge-issued', (issued) => this.onChallengeIssued(role, issued));
       browser.on('passkey-result', (result) => this.onPasskeyResult(role, result));
       browser.on('disconnected', () => {
         if (this.phase !== 'ready') return;
@@ -147,6 +160,18 @@ export class DemoController extends EventEmitter {
   onReport(role, payload) {
     if (payload?.type === 'send') this.facts.lastSend[role] = payload;
     if (payload?.type === 'copy') this.facts.lastCopy[role] = String(payload.text ?? '');
+    if (payload?.type === 'dismiss') this.facts.lastDismiss[role] = { op: payload.op, challenge: payload.challenge ?? null, at: Date.now() };
+  }
+
+  onChallengeIssued(role, { op, challenge }) {
+    if (this.phase === 'failed' || op !== 'get') return;
+    this.facts.sessions[role] = { challenge, usedBy: null };
+    this.publish();
+  }
+
+  /** Whose session the website issued a login challenge to (null if none of the browsers'). */
+  sessionOfChallenge(challenge) {
+    return ROLES.find((role) => challenge && this.facts.sessions[role]?.challenge === challenge) ?? null;
   }
 
   /**
@@ -188,7 +213,7 @@ export class DemoController extends EventEmitter {
         this.clearNotice();
       } else if (role === 'attacker' && reward && !facts.overwrite) {
         facts.overwrite = { reward, keyName: send?.key ?? null };
-        if (interactive) this.celebrate({ kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title });
+        if (interactive) this.celebrate({ kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title, detail: this.scenario.flagDetail });
         this.clearNotice();
       } else if (interactive && role === 'attacker' && !reward && this.currentStep().id === 'overwrite') {
         this.setNotice('warning', this.scenario.notices.overwriteMissed);
@@ -198,6 +223,8 @@ export class DemoController extends EventEmitter {
     }
 
     const loggedInAs = result.body?.user?.username ?? null;
+    const reward = result.body?.reward ?? null;
+    const challengeSession = this.sessionOfChallenge(result.challenge);
     facts.lastLogin = {
       role,
       ok: result.ok,
@@ -205,9 +232,15 @@ export class DemoController extends EventEmitter {
       error: result.ok ? null : (result.body?.error ?? `HTTP ${result.status}`),
       signedWith: keyOwner(send?.key) ?? role,
       storedKey: facts.passkeys.get(result.credentialId)?.keyOwner ?? null,
+      challengeSession,
       at: Date.now(),
     };
-    if (role === 'attacker' && result.ok && loggedInAs && loggedInAs === facts.names.victim && !facts.takeover) {
+    if (result.ok && challengeSession) facts.sessions[challengeSession].usedBy = role;
+    if (result.ok && reward && !facts.loginFlag) {
+      facts.loginFlag = { role, reward };
+      if (interactive) this.celebrate({ kind: 'flag', country: reward.country, imageUrl: reward.imageUrl, title: reward.title, detail: this.scenario.flagDetail });
+      this.clearNotice();
+    } else if (role === 'attacker' && result.ok && loggedInAs && loggedInAs === facts.names.victim && !facts.takeover) {
       facts.takeover = { user: loggedInAs };
       if (interactive) this.celebrate({ kind: 'takeover', user: loggedInAs });
       this.clearNotice();
@@ -281,7 +314,7 @@ export class DemoController extends EventEmitter {
     const step = this.currentStep();
     const state = this.guideState();
     const current = this.evaluateStep(step, state).find((entry) => entry.current);
-    const role = current ? step.focus : null;
+    const role = current ? (current.task.role ?? step.focus) : null;
     let spec = null;
     if (current?.task.highlight) {
       try {
@@ -305,8 +338,7 @@ export class DemoController extends EventEmitter {
   async autopilot() {
     if (this.phase !== 'ready' || this.autopilotRunning) return;
     const step = this.currentStep();
-    if (!step.focus || step.tasks.length === 0) return;
-    const browser = this.browsers[step.focus];
+    if (step.tasks.length === 0) return;
     const generation = this.generation;
     this.autopilotRunning = true;
     this.publish();
@@ -316,7 +348,7 @@ export class DemoController extends EventEmitter {
         if (task.done(this.guideState())) continue;
         const startedAt = Date.now();
         await sleep(this.config.autopilotPauseMs);
-        await task.run({ browser, state: () => this.guideState() });
+        await task.run({ browser: this.browsers[task.role ?? step.focus], state: () => this.guideState() });
         await this.waitUntil(() => task.done(this.guideState()), AUTOPILOT_TASK_TIMEOUT_MS);
         this.log.info(`autopilot: ${step.id}/${task.id} done in ${Date.now() - startedAt} ms`);
       }
@@ -363,11 +395,11 @@ export class DemoController extends EventEmitter {
   // ─── Published state ────────────────────────────────────────────────────
 
   render(html) {
-    const { names, overwrite, scenario } = this.facts;
+    const { names, overwrite, loginFlag, scenario } = this.facts;
     return html
       .replaceAll('{victim}', escapeHtml(names.victim ?? 'victim'))
       .replaceAll('{attacker}', escapeHtml(names.attacker ?? 'attacker'))
-      .replaceAll('{flag}', escapeHtml(overwrite?.reward?.country ?? ''))
+      .replaceAll('{flag}', escapeHtml((overwrite ?? loginFlag)?.reward?.country ?? ''))
       .replaceAll('{leaked}', `<code>${escapeHtml(shortId(scenario.leakedCredentialId ?? ''))}</code>`);
   }
 
@@ -390,11 +422,15 @@ export class DemoController extends EventEmitter {
     const stepViews = this.steps.map((step, index) => {
       const evaluated = index === this.stepIndex ? this.evaluateStep(step, state) : step.tasks.map((task) => ({ task, done: false, current: false }));
       const complete = this.phase === 'ready' && holds(step.complete, state);
+      const current = evaluated.find((entry) => entry.current);
       return {
         id: step.id,
         short: step.short,
         marker: step.marker,
+        /** "victim", "attacker", "both" (tasks in both browsers) or null. */
         focus: step.focus,
+        /** The browser whose turn it is now: the current task's, else the step's. */
+        acting: current?.task.role ?? (step.focus === 'both' ? null : step.focus),
         bonus: Boolean(step.bonus),
         kicker: step.kicker,
         title: this.render(step.title),
@@ -414,7 +450,7 @@ export class DemoController extends EventEmitter {
     }));
 
     return {
-      demo: { id: this.scenario.id, title: this.scenario.title },
+      demo: { id: this.scenario.id, title: this.scenario.title, headline: this.scenario.headline, loginCheck: this.scenario.loginCheck ?? 'signature' },
       demos: this.catalog,
       phase: this.phase,
       setup: this.setup,
@@ -423,6 +459,7 @@ export class DemoController extends EventEmitter {
       names: this.facts.names,
       diagram,
       passkeys: [...this.facts.passkeys.values()],
+      sessions: this.facts.sessions,
       lastLogin: this.facts.lastLogin,
       notice: this.notice,
       celebration: this.celebration,

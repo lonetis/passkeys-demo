@@ -2,6 +2,7 @@
  * Shared building blocks for guided scenarios on the Fun with Flags and Passkeys CTF.
  *
  * A scenario step has tasks. Each task knows
+ *  - role:      the browser it happens in (defaults to the step's focus),
  *  - text:      what to do (HTML; {victim}/{attacker} are replaced with the usernames),
  *  - done(s):   whether it is done, derived from live browser state and recorded facts,
  *  - highlight: where to point in the real browser,
@@ -107,6 +108,7 @@ export function signUpTasks(role, suggestedName) {
   };
   return [
     {
+      role,
       id: 'open-register',
       text: 'Click <b>Register</b> (top right)',
       done: (s) => learning(s, role)?.path === '/register' || loggedIn(s),
@@ -114,6 +116,7 @@ export function signUpTasks(role, suggestedName) {
       run: async ({ browser }) => clickVisible(await learningPageOf(browser), SELECTORS.registerButton),
     },
     {
+      role,
       id: 'fill-form',
       text: `Username <code>${suggestedName}</code>, any password (twice)`,
       done: (s) => formFilled(s) || loggedIn(s),
@@ -135,6 +138,7 @@ export function signUpTasks(role, suggestedName) {
       },
     },
     {
+      role,
       id: 'submit',
       text: 'Click <b>Create Account</b>',
       done: loggedIn,
@@ -146,6 +150,7 @@ export function signUpTasks(role, suggestedName) {
 
 export function openSettingsTask(role, finished) {
   return {
+    role,
     id: 'open-settings',
     text: `Open <b>{${role}}</b> → <b>Settings</b>`,
     done: (s) => learning(s, role)?.path === '/settings' || interceptorOpen(s, role, 'create') || finished(s),
@@ -164,6 +169,7 @@ export function openSettingsTask(role, finished) {
 export function addPasskeyTasks(role, finished) {
   return [
     {
+      role,
       id: 'add-passkey',
       text: 'Click <b>+ Add Passkey</b>',
       done: (s) => learning(s, role)?.addPasskeyModalOpen || interceptorOpen(s, role, 'create') || finished(s),
@@ -175,6 +181,7 @@ export function addPasskeyTasks(role, finished) {
       },
     },
     {
+      role,
       id: 'register-passkey',
       text: 'Click <b>Register Passkey</b> — the interceptor opens',
       done: (s) => interceptorOpen(s, role, 'create') || finished(s),
@@ -191,6 +198,7 @@ export function selectTask(role, op, field, expected, text, finished) {
   const selector = SELECT_IDS[op][field];
   const value = (s) => (typeof expected === 'function' ? expected(s) : expected);
   return {
+    role,
     id: `select-${field}`,
     text,
     done: (s) => (interceptorOpen(s, role, op) && interceptor(s, role)[field] === value(s)) || finished(s),
@@ -210,6 +218,7 @@ export function selectTask(role, op, field, expected, text, finished) {
 
 export function sendTask(role, op, finished) {
   return {
+    role,
     id: 'send',
     text: 'Click <b>Send</b>',
     done: finished,
@@ -229,6 +238,7 @@ export function sendTask(role, op, finished) {
 
 export function logoutTask(role, text, finished) {
   return {
+    role,
     id: 'logout',
     text,
     done: (s) => !learning(s, role)?.user || interceptorOpen(s, role, 'get') || finished(s),
@@ -255,6 +265,7 @@ export function logoutTask(role, text, finished) {
 
 export function passkeyLoginTask(role, finished) {
   return {
+    role,
     id: 'passkey-login',
     text: 'Click <b>Login</b>, then <b>Login with Passkey</b>',
     done: (s) => interceptorOpen(s, role, 'get') || finished(s),
@@ -282,6 +293,7 @@ export function keepSelectionTask(role, op, expected, text, finished) {
   const expectations = (s) => (typeof expected === 'function' ? expected(s) : expected);
   const mismatches = (s) => Object.entries(expectations(s)).filter(([field, value]) => interceptor(s, role)?.[field] !== value);
   return {
+    role,
     id: `keep-selection-${op}`,
     text,
     done: (s) => (interceptorOpen(s, role, op) && mismatches(s).length === 0) || finished(s),
@@ -339,6 +351,7 @@ async function submitUsernameFirst(browser, username) {
  */
 export function usernameFirstPasskeyLoginTask(role, username, text, finished) {
   return {
+    role,
     id: 'username-first-login',
     text,
     done: (s) => interceptorOpen(s, role, 'get') || finished(s),
@@ -355,6 +368,7 @@ export function passwordFallbackLoginTasks(role, username, finished) {
   const loggedIn = (s) => learning(s, role)?.user === username || finished(s);
   return [
     {
+      role,
       id: 'username',
       text: `Username <code>${username}</code> → <b>Continue</b>`,
       done: (s) => Boolean(learning(s, role)?.usernameFirst?.passwordVisible) || loggedIn(s),
@@ -366,6 +380,7 @@ export function passwordFallbackLoginTasks(role, username, finished) {
       },
     },
     {
+      role,
       id: 'password',
       text: `Password <code>${CTF_PASSWORD}</code> → <b>Login</b>`,
       done: loggedIn,
@@ -389,6 +404,7 @@ export function passwordFallbackLoginTasks(role, username, finished) {
  */
 export function removeUserHandleTask(role, text, finished) {
   return {
+    role,
     id: 'remove-user-handle',
     text,
     done: (s) => (interceptorOpen(s, role, 'get') && interceptor(s, role).responseHasUserHandle === false) || finished(s),

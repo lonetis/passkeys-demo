@@ -54,6 +54,14 @@ export function snapshotInterceptorPage() {
   const selectedText = (id) => document.getElementById(id)?.selectedOptions?.[0]?.text ?? null;
   const request = parseJson(document.getElementById('interceptorRequestTextarea')?.value);
   const response = parseJson(document.getElementById('interceptorResponseTextarea')?.value);
+  const decodeClientData = (encoded) => {
+    try {
+      const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')));
+    } catch {
+      return null;
+    }
+  };
   // Keys of a local (non-remote) passkeys.tools store, to see credential IDs edited in the Keys tab.
   const storedKeys = parseJson(localStorage.getItem('keys')) ?? {};
   const keyCredentialIds = Object.fromEntries(Object.entries(storedKeys)
@@ -70,6 +78,14 @@ export function snapshotInterceptorPage() {
     userHandle: op === 'get' ? selectedText('getUserHandleSelect') : null,
     allowCredentials: (request?.allowCredentials ?? []).map((credential) => credential.id),
     responseHasUserHandle: response ? Boolean(response.userHandle) : null,
+    // The website's challenge in the request, and the challenge the response signs.
+    challenge: request?.challenge ?? null,
+    responseChallenge: typeof response?.clientDataJSON === 'string' ? decodeClientData(response.clientDataJSON)?.challenge ?? null : null,
+    // The selected entry under "Attacks" (e.g. "Challenge | Session Binding") and its error, if any.
+    attack: document.querySelector('input[name="modification"]:checked')?.value ?? null,
+    attackError: isVisible(document.querySelector('#interceptorModifications .alert'))
+      ? document.querySelector('#interceptorModifications .alert').textContent.trim()
+      : null,
     keysForm: {
       b64url: document.getElementById('keysUpdateCredentialIdB64urlInput')?.value ?? '',
       key: selectedText('keysUpdateCredentialIdSelect'),
@@ -81,6 +97,7 @@ export function snapshotInterceptorPage() {
 /**
  * Init script: reports user actions polling could miss —
  *  - "send": the interceptor selection at the exact moment "Send" is clicked,
+ *  - "dismiss": the request's challenge when the interceptor's "Dismiss" is clicked,
  *  - "copy": text copied to the clipboard (e.g. a credential ID from the request).
  */
 export function reportUserActions() {
@@ -89,10 +106,20 @@ export function reportUserActions() {
     if (typeof window.__pkdemoReport === 'function') window.__pkdemoReport(payload);
   };
   document.addEventListener('click', (event) => {
-    const button = event.target instanceof Element ? event.target.closest('#interceptorSendButton') : null;
-    if (!button) return;
-    const selectedText = (id) => document.getElementById(id)?.selectedOptions?.[0]?.text ?? null;
+    const target = event.target instanceof Element ? event.target : null;
     const op = document.getElementById('getCredentialIdSelect') ? 'get' : 'create';
+    if (target?.closest('#interceptorDismissButton')) {
+      let challenge = null;
+      try {
+        challenge = JSON.parse(document.getElementById('interceptorRequestTextarea')?.value || '{}').challenge ?? null;
+      } catch {
+        challenge = null;
+      }
+      report({ type: 'dismiss', op, challenge });
+      return;
+    }
+    if (!target?.closest('#interceptorSendButton')) return;
+    const selectedText = (id) => document.getElementById(id)?.selectedOptions?.[0]?.text ?? null;
     report({
       type: 'send',
       op,
