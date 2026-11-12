@@ -21,6 +21,7 @@ Live, guided demos of passkey attacks from our paper *The State of Passkeys* (US
 - Keyboard and presenter-remote navigation (PageUp/PageDown, arrow keys, `F` for fullscreen)
 - Basic-auth protection; the browsers can only navigate to the demo sites
 - One-line install to run all demos on your own machine; the landing page links to this repository with a QR code, so visitors can try it themselves
+- Pre-built images for x86-64 and ARM (Apple Silicon)
 
 ## Getting Started
 
